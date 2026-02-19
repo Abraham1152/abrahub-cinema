@@ -5,18 +5,15 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Forçamos o caminho absoluto para Vercel e relativo para GitHub/Local
-  base: process.env.VERCEL ? "/" : "./",
+  // Absolute base path for maximum compatibility with Vercel
+  base: "/",
   build: {
     outDir: "dist",
-    emptyOutDir: true,
+    assetsDir: "assets",
   },
   server: {
     host: "::",
     port: 8080,
-    hmr: {
-      overlay: false,
-    },
   },
   plugins: [
     react(),
