@@ -88,48 +88,50 @@ export const LENS_OPTIONS: LensOption[] = [
 ];
 
 // Focal length options
+const STORAGE_URL = 'https://vajxjtrztwfolhnkewnq.supabase.co/storage/v1/object/public/preset-images';
+
 export const FOCAL_LENGTH_OPTIONS: FocalLengthOption[] = [
   {
     id: '14mm',
     label: '14mm',
     value: 14,
     description: 'Ultra-wide • Perspectiva dramática',
-    previewImage: 'presets/focal-14mm.jpg',
+    previewImage: `${STORAGE_URL}/focal/14mm.png`,
   },
   {
     id: '24mm',
     label: '24mm',
     value: 24,
     description: 'Wide • Contexto ambiental',
-    previewImage: 'presets/focal-24mm.jpg',
+    previewImage: `${STORAGE_URL}/focal/24mm.jpg`,
   },
   {
     id: '35mm',
     label: '35mm',
     value: 35,
     description: 'Standard • Visão natural',
-    previewImage: 'presets/focal-35mm.jpg',
+    previewImage: `${STORAGE_URL}/focal/35mm.jpg`,
   },
   {
     id: '50mm',
     label: '50mm',
     value: 50,
     description: 'Normal • Como o olho humano',
-    previewImage: 'presets/focal-50mm.jpg',
+    previewImage: `${STORAGE_URL}/focal/50mm.png`,
   },
   {
     id: '85mm',
     label: '85mm',
     value: 85,
     description: 'Portrait • Compressão facial',
-    previewImage: 'presets/focal-85mm.jpg',
+    previewImage: `${STORAGE_URL}/focal/85mm.png`,
   },
   {
     id: '135mm',
     label: '135mm',
     value: 135,
     description: 'Tele • Isolamento máximo',
-    previewImage: 'presets/focal-135mm.jpg',
+    previewImage: `${STORAGE_URL}/focal/135mm.png`,
   },
 ];
 
