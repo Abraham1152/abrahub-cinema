@@ -4,9 +4,11 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: process.env.GITHUB_ACTIONS ? "/abrahub-cinema/" : "/",
-  server: {
+export default defineConfig(({ mode }) => {
+  const isGitHubPages = mode === 'production' && !process.env.VERCEL;
+  return {
+    base: isGitHubPages ? "/abrahub-cinema/" : "/",
+    server: {
     host: "::",
     port: 8080,
     hmr: {
