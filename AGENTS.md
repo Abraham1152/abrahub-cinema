@@ -32,10 +32,11 @@ We operate with three distinct paid tiers. There is **no FREE/Basic tier** anymo
 - **Onboarding:** Specialized modal inviting new paid users to set up their Gemini Key.
 
 ## 🛠️ Recent Milestones
+- **Storyboard Cleanup:** Removed the "Continuação" button from Scene nodes to simplify the UI.
 - **Webhook Validation:** 
-  - **Kiwify:** 100% Verified (Test success with `johndoe@example.com`).
-  - **Stripe:** Configured in LIVE mode with resiliency fixes for `incomplete` status and improved email capture. Ready for production events.
-- **Mass Import Part 2:** Added 100+ additional users to the `authorized_users` whitelist.
+  - **Kiwify:** 100% Verified.
+  - **Stripe:** Configured in LIVE mode.
+- **Mass Import Part 2:** Added 100+ additional users.
 - **Tier Simplification:** System now exclusively supports Community, PRO, and PRO+ tiers.
 - **Stability:** Fixed UI "flash" issues on page refresh.
 - **Tier Simplification:** Removed all references to "Free" and "Basic" plans, consolidating into the 3-tier structure (Community, PRO, PRO+).

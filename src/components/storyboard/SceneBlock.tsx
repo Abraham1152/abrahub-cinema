@@ -504,20 +504,6 @@ export function SceneBlock({
         </div>
       )}
 
-      {/* Scene Actions Footer */}
-      <div className="px-3 pb-2 flex gap-1.5 border-t border-border pt-2" data-no-drag>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 gap-1.5 text-[10px] h-7"
-          onClick={() => onCreateFromScene(scene.id)}
-          title="Criar nova cena herdando estilo e imagem principal como referência"
-        >
-          <Copy className="h-3 w-3" />
-          Continuação
-        </Button>
-      </div>
-
       {/* Reference Picker Modal */}
       <ImagePickerModal
         open={refPickerOpen}
