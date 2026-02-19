@@ -191,8 +191,16 @@ serve(async (req) => {
   });
 
   if (!stripeSecretKey || !webhookSecret || !supabaseUrl || !supabaseServiceKey) {
-    logStep("ERROR: Missing environment variables");
-    return new Response(JSON.stringify({ error: "Server configuration error" }), {
+    logStep("ERROR: Missing environment variables", {
+      stripeSecretKey: !!stripeSecretKey,
+      webhookSecret: !!webhookSecret,
+      supabaseUrl: !!supabaseUrl,
+      supabaseServiceKey: !!supabaseServiceKey
+    });
+    return new Response(JSON.stringify({ 
+      error: "Server configuration error", 
+      details: "Missing required environment variables" 
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -185,16 +185,15 @@ export function SceneBlock({
         </Button>
       </div>
 
-      {/* Equipment Bar - only on root scenes */}
-      {!hasParent && (
-        <StoryboardEquipmentBar
-          styleData={(scene.style_data as any) || {}}
-          onChange={(updates) => {
-            const currentStyleData = (scene.style_data as any) || {};
-            onUpdate(scene.id, { style_data: { ...currentStyleData, ...updates } } as any);
-          }}
-        />
-      )}
+      {/* Equipment Bar - Visible on all scenes, but Camera/Aperture locked if inherited */}
+      <StoryboardEquipmentBar
+        styleData={(scene.style_data as any) || {}}
+        inherited={hasParent}
+        onChange={(updates) => {
+          const currentStyleData = (scene.style_data as any) || {};
+          onUpdate(scene.id, { style_data: { ...currentStyleData, ...updates } } as any);
+        }}
+      />
 
       {/* Inheritance Controls - child scenes */}
       {hasParent && (

@@ -16,9 +16,10 @@ interface StoryboardEquipmentBarProps {
   styleData: StyleData;
   onChange: (updates: Partial<StyleData>) => void;
   readOnly?: boolean;
+  inherited?: boolean;
 }
 
-export function StoryboardEquipmentBar({ styleData, onChange, readOnly = false }: StoryboardEquipmentBarProps) {
+export function StoryboardEquipmentBar({ styleData, onChange, readOnly = false, inherited = false }: StoryboardEquipmentBarProps) {
   const { presets, loading } = usePresets();
 
   const currentCamera = presets.camera.find(p => p.preset_key === (styleData.presetId || 'arri-natural'));
@@ -63,8 +64,9 @@ export function StoryboardEquipmentBar({ styleData, onChange, readOnly = false }
       <Select
         value={styleData.presetId || 'arri-natural'}
         onValueChange={v => onChange({ presetId: v })}
+        disabled={inherited}
       >
-        <SelectTrigger className="h-6 text-[9px] gap-1 px-1.5">
+        <SelectTrigger className={`h-6 text-[9px] gap-1 px-1.5 ${inherited ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <Camera className="h-3 w-3 text-primary/60 shrink-0" />
           <SelectValue />
         </SelectTrigger>
@@ -77,7 +79,7 @@ export function StoryboardEquipmentBar({ styleData, onChange, readOnly = false }
         </SelectContent>
       </Select>
 
-      {/* Focal */}
+      {/* Focal (Lens) - ALWAYS ENABLED */}
       <Select
         value={styleData.focalLength || '35mm'}
         onValueChange={v => onChange({ focalLength: v })}
@@ -95,12 +97,13 @@ export function StoryboardEquipmentBar({ styleData, onChange, readOnly = false }
         </SelectContent>
       </Select>
 
-      {/* Aperture */}
+      {/* Aperture (Focus/Look) */}
       <Select
         value={styleData.aperture || 'f2.8'}
         onValueChange={v => onChange({ aperture: v })}
+        disabled={inherited}
       >
-        <SelectTrigger className="h-6 text-[9px] gap-1 px-1.5">
+        <SelectTrigger className={`h-6 text-[9px] gap-1 px-1.5 ${inherited ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <Aperture className="h-3 w-3 text-primary/60 shrink-0" />
           <SelectValue />
         </SelectTrigger>
@@ -113,7 +116,7 @@ export function StoryboardEquipmentBar({ styleData, onChange, readOnly = false }
         </SelectContent>
       </Select>
 
-      {/* Angle */}
+      {/* Angle - ALWAYS ENABLED */}
       <Select
         value={styleData.cameraAngle || 'eye-level'}
         onValueChange={v => onChange({ cameraAngle: v })}
