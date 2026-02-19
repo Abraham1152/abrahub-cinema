@@ -624,24 +624,26 @@ export default function Index() {
           
           if (result.status === 'fulfilled' && result.value?.success) {
             const data = result.value;
+            const queueId = data.queueId;
             
-            // Update Gallery with Local Image (Base64) for instant feedback while syncing
+            // Keep the temporary card but update it to link with the queueId
             setGalleryMap(prev => {
               const newMap = new Map(prev);
-              const localUrl = `data:image/png;base64,${data.base64}`;
-              newMap.set(data.imageId, {
-                id: data.imageId,
-                type: 'image',
-                url: localUrl,
-                prompt: currentPrompt,
-                modelLabel: currentPreset || 'ABRAhub Realism',
-                status: 'ready',
-                createdAt: new Date().toISOString(),
-                creditsCost: 0,
-              });
+              const existing = newMap.get(tempId);
               
-              // Remove the temporary card
-              newMap.delete(tempId);
+              if (existing) {
+                // Update the temp card to show it's now in the server queue
+                newMap.set(tempId, {
+                  ...existing,
+                  status: 'generating', // Change from pending to generating
+                });
+                
+                // Track this ID so we can bridge it later when the image is ready
+                if (queueId) {
+                  optimisticQueueIdsRef.current.add(tempId);
+                  queueToImageMapRef.current.set(queueId, tempId);
+                }
+              }
               return newMap;
             });
             
