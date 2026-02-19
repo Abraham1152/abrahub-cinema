@@ -625,15 +625,7 @@ export default function Index() {
           if (result.status === 'fulfilled' && result.value?.success) {
             const data = result.value;
             
-            // 1. Trigger Auto-Download to user's computer
-            const link = document.createElement('a');
-            link.href = `data:image/png;base64,${data.base64}`;
-            link.download = data.fileName || `abrahub_cinema_${Date.now()}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // 2. Update Gallery with Local Image (Base64)
+            // Update Gallery with Local Image (Base64) for instant feedback while syncing
             setGalleryMap(prev => {
               const newMap = new Map(prev);
               const localUrl = `data:image/png;base64,${data.base64}`;
@@ -642,11 +634,14 @@ export default function Index() {
                 type: 'image',
                 url: localUrl,
                 prompt: currentPrompt,
-                modelLabel: 'ABRAhub Cinema (Salvo Local)',
+                modelLabel: currentPreset || 'ABRAhub Realism',
                 status: 'ready',
                 createdAt: new Date().toISOString(),
                 creditsCost: 0,
               });
+              
+              // Remove the temporary card
+              newMap.delete(tempId);
               return newMap;
             });
             
