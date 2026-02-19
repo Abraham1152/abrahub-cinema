@@ -20,8 +20,9 @@ export interface Subscription {
 // Get base credits for a plan (monthly allowance)
 function getBaseCreditsForPlan(plan: string): number {
   if (plan === 'free') return 0;
-  if (plan === 'pro') return 10; // PRO (Circle intermediate tier)
-  if (plan === 'proplus') return STRIPE_PLANS.pro.credits; // PRO+ uses the config (100 credits)
+  if (plan === 'community') return STRIPE_PLANS.community.credits; // Community (Unlimited)
+  if (plan === 'pro') return STRIPE_PLANS.pro.credits; // PRO (10 credits)
+  if (plan === 'proplus') return STRIPE_PLANS.proplus.credits; // PRO+ (100 credits)
   return 0;
 }
 

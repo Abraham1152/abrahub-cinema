@@ -25,9 +25,30 @@ export function estimateCampaignCost(durationSeconds: number): number {
 }
 
 // ABRAhub Realism Plans
-// Note: PRO (10 credits) is Circle-only and not shown in UI
+// community: unlimited for members, pro: Circle intermediate, proplus: independent full tier
 export const STRIPE_PLANS = {
   pro: {
+    name: 'ABRAhub PRO',
+    monthly: {
+      product_id: 'prod_T0NjwLkjsnhi7Nm', 
+      price_id: 'price_1T0NjwLkjsnhi7Nm5tPY8H6G',
+      price: 90.00,
+    },
+    yearly: {
+      product_id: 'prod_SxssfLkjsnhi7Nm', 
+      price_id: 'price_1SxssfLkjsnhi7NmVsXsSLum',
+      price: 1080.00,
+    },
+    credits: 10,
+    description: 'Acesso intermediário à plataforma cinematográfica',
+    features: [
+      '10 créditos /mês',
+      'Acesso a presets PRO',
+      'BYOK (Sua própria API key)',
+    ],
+    popular: false,
+  },
+  proplus: {
     name: 'ABRAhub PRO+',
     monthly: {
       product_id: 'prod_TpIHKP5Wui6WKh',
@@ -37,17 +58,38 @@ export const STRIPE_PLANS = {
     yearly: {
       product_id: 'prod_TpIHedJFtZLeYL',
       price_id: 'price_1SrdgpLkjsnhi7NmVbUPjIPj',
-      price: 1970.00, // ~2 meses grátis
+      price: 1970.00,
     },
     credits: 100,
     description: 'Acesso completo à plataforma de geração cinematográfica',
     features: [
       '100 créditos /mês',
-      'Acesso a todos presets de lentes e câmeras',
-      'Qualidade 2K e 4K',
-      'Suporte prioritário',
+      'Acesso a todos presets',
+      'Qualidade 4K',
+      'BYOK (Sua própria API key)',
     ],
     popular: true,
+  },
+  community: {
+    name: 'ABRAhub Comunidade',
+    monthly: {
+      product_id: 'prod_SrPOpLkjsnhi7Nm',
+      price_id: 'price_1SrPOpLkjsnhi7Nmn6nCZYeW',
+      price: 0,
+    },
+    yearly: {
+      product_id: 'prod_SrPtuLkjsnhi7Nm',
+      price_id: 'price_1SrPtuLkjsnhi7NmaKqqGaCP',
+      price: 0,
+    },
+    credits: 999999,
+    description: 'Acesso exclusivo para membros da comunidade',
+    features: [
+      'Acesso Ilimitado (Comunidade)',
+      'Todos os presets liberados',
+      'BYOK (Sua própria API key)',
+    ],
+    popular: false,
   },
 } as const;
 

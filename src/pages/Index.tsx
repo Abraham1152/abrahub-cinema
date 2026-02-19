@@ -108,30 +108,38 @@ export default function Index() {
     if (!user?.id) return;
     
     const checkApiKey = async () => {
-      const { data } = await supabase
-        .from('user_api_keys')
-        .select('is_valid')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Fetch both API key status and entitlements in parallel to avoid multiple re-renders
+      const [apiKeyResult, entitlementResult] = await Promise.all([
+        supabase
+          .from('user_api_keys')
+          .select('is_valid')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('entitlements')
+          .select('plan')
+          .eq('user_id', user.id)
+          .maybeSingle()
+      ]);
       
-      const valid = data?.is_valid === true;
+      const valid = apiKeyResult.data?.is_valid === true;
+      const plan = entitlementResult.data?.plan || 'free';
+      
       setHasValidApiKey(valid);
       // BYOK as default when valid key exists
       setUseOwnKey(valid);
       
-      // Show onboarding popup only for PRO/PRO+ users (not FREE)
+      // SHOW onboarding popup ONLY if:
+      // 1. Key is NOT valid
+      // 2. User hasn't dismissed onboarding yet
+      // 3. User is NOT on FREE plan (Pro, ProPlus, Community should see it)
       if (!valid && !localStorage.getItem('byok_onboarding_seen')) {
-        const { data: entitlement } = await supabase
-          .from('entitlements')
-          .select('plan')
-          .eq('user_id', user.id)
-          .maybeSingle();
-        
-        const plan = entitlement?.plan || 'free';
-        if (plan === 'pro' || plan === 'proplus') {
-          setShowOnboarding(true);
+        const eligiblePlans = ['pro', 'proplus', 'community'];
+        if (eligiblePlans.includes(plan)) {
+          // Delaying slightly to ensure UI is settled and avoid the flash
+          setTimeout(() => setShowOnboarding(true), 500);
         } else {
-          // FREE users: skip onboarding permanently
+          // Others: skip onboarding permanently
           localStorage.setItem('byok_onboarding_seen', 'true');
         }
       }

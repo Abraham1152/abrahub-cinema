@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useCredits } from '@/hooks/useCredits';
 
 interface SettingsModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ open, onOpenChange, user }: SettingsModalProps) {
+  const { subscription, isAdmin } = useCredits(user?.id);
   const [loading, setLoading] = useState(true);
   const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
   const [changePasswordDialogOpen, setChangePasswordDialogOpen] = useState(false);
@@ -219,62 +221,63 @@ export function SettingsModal({ open, onOpenChange, user }: SettingsModalProps) 
 
               <Separator />
 
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-primary" />
-                  Google API Key (Gemini)
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Adicione sua API key do Google AI Studio para habilitar a geração de cenas.
-                </p>
+              {(isAdmin || subscription?.plan === 'pro' || subscription?.plan === 'basic' || subscription?.plan === 'proplus' || subscription?.plan === 'community') && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" />
+                    Google API Key (Gemini)
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Adicione sua API key do Google AI Studio para habilitar a geração de cenas sem custo de créditos da plataforma.
+                  </p>
 
-                {apiKeyStatus === 'valid' && savedKeyMask && !isChangingKey ? (
-                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-green-400">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>API key ativa: {savedKeyMask}</span>
+                  {apiKeyStatus === 'valid' && savedKeyMask && !isChangingKey ? (
+                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-green-400">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>API key ativa: {savedKeyMask}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="text-primary h-7 px-2 text-xs" onClick={() => setIsChangingKey(true)}>
+                            Trocar
+                          </Button>
+                          <Button variant="ghost" size="sm" className="text-destructive h-7 px-2" onClick={handleRemoveApiKey}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" className="text-primary h-7 px-2 text-xs" onClick={() => setIsChangingKey(true)}>
-                          Trocar
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive h-7 px-2" onClick={handleRemoveApiKey}>
-                          <Trash2 className="h-3 w-3" />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {apiKeyStatus === 'invalid' && (
+                        <div className="flex items-center gap-2 text-xs text-destructive">
+                          <XCircle className="h-3 w-3" />
+                          <span>API key inválida.</span>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            type={showApiKey ? 'text' : 'password'}
+                            placeholder="Cole sua API key aqui..."
+                            value={apiKeyInput}
+                            onChange={(e) => setApiKeyInput(e.target.value)}
+                            className="pr-8 text-xs"
+                          />
+                          <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            {showApiKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                          </button>
+                        </div>
+                        <Button size="sm" onClick={handleValidateApiKey} disabled={validatingKey || !apiKeyInput.trim()}>
+                          {validatingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validar'}
                         </Button>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {apiKeyStatus === 'invalid' && (
-                      <div className="flex items-center gap-2 text-xs text-destructive">
-                        <XCircle className="h-3 w-3" />
-                        <span>API key inválida.</span>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          type={showApiKey ? 'text' : 'password'}
-                          placeholder="Cole sua API key aqui..."
-                          value={apiKeyInput}
-                          onChange={(e) => setApiKeyInput(e.target.value)}
-                          className="pr-8 text-xs"
-                        />
-                        <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          {showApiKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                        </button>
-                      </div>
-                      <Button size="sm" onClick={handleValidateApiKey} disabled={validatingKey || !apiKeyInput.trim()}>
-                        {validatingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validar'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
+                  )}
+                  <Separator className="mt-6" />
+                </div>
+              )}
 
               {/* Diagnostic Section */}
               <div className="space-y-3">

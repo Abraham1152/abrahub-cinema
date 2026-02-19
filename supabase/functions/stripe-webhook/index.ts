@@ -17,6 +17,12 @@ const PRO_PLUS_PRICE_IDS = [
   "price_1SrdgpLkjsnhi7NmVbUPjIPj", // PRO+ anual R$1790
 ];
 
+// Comunidade - Community tier
+const COMMUNITY_PRICE_IDS = [
+  "price_1SrPOpLkjsnhi7Nmn6nCZYeW",
+  "price_1SrPtuLkjsnhi7NmaKqqGaCP",
+];
+
 // Credit package price IDs (one-off purchases)
 const CREDIT_PACKAGE_PRICE_IDS = [
   "price_1Sxs1HLkjsnhi7Nm9ISzvNnw", // 10 credits
@@ -27,6 +33,7 @@ const CREDIT_PACKAGE_PRICE_IDS = [
 
 const PRO_CREDITS = 10;
 const PRO_PLUS_CREDITS = 100;
+const COMMUNITY_CREDITS = 999999; // Representing unlimited/community access
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,14 +60,20 @@ const safeDate = (timestamp: number | null | undefined): string | null => {
 // Get current timestamp as ISO string
 const nowISO = (): string => new Date().toISOString();
 
-// Get subscription tier: 'proplus' (100 credits), 'pro' (10 credits), or null (free)
-function getSubscriptionTier(subscription: Stripe.Subscription): 'proplus' | 'pro' | null {
+// Get subscription tier: 'proplus' (100 credits), 'pro' (10 credits), 'community' or null (free)
+function getSubscriptionTier(subscription: Stripe.Subscription): 'proplus' | 'pro' | 'community' | null {
   // Check PRO+ first (higher tier takes precedence)
   const hasProPlus = subscription.items.data.some((item: Stripe.SubscriptionItem) =>
     PRO_PLUS_PRICE_IDS.includes(item.price.id)
   );
   if (hasProPlus) return 'proplus';
   
+  // Check Community
+  const hasCommunity = subscription.items.data.some((item: Stripe.SubscriptionItem) =>
+    COMMUNITY_PRICE_IDS.includes(item.price.id)
+  );
+  if (hasCommunity) return 'community';
+
   // Check PRO (intermediate tier)
   const hasPro = subscription.items.data.some((item: Stripe.SubscriptionItem) =>
     PRO_PRICE_IDS.includes(item.price.id)
@@ -70,15 +83,16 @@ function getSubscriptionTier(subscription: Stripe.Subscription): 'proplus' | 'pr
   return null;
 }
 
-// Check if subscription is a paid tier (PRO or PRO+)
+// Check if subscription is a paid tier (PRO, PRO+ or Community)
 function isPaidSubscription(subscription: Stripe.Subscription): boolean {
   return getSubscriptionTier(subscription) !== null;
 }
 
 // Get credits for a tier
-function getCreditsForTier(tier: 'proplus' | 'pro' | null): number {
+function getCreditsForTier(tier: 'proplus' | 'pro' | 'community' | null): number {
   if (tier === 'proplus') return PRO_PLUS_CREDITS;
   if (tier === 'pro') return PRO_CREDITS;
+  if (tier === 'community') return COMMUNITY_CREDITS;
   return 0;
 }
 
@@ -565,10 +579,34 @@ async function handleSubscriptionChange(
   const cancelAtPeriodEnd = subscription.cancel_at_period_end;
   
   // Sync with authorized_users table
-  const customer = await stripe.customers.retrieve(stripeCustomerId);
-  if (!customer.deleted && customer.email) {
-    const authStatus = (status === 'active' || status === 'trialing') && !isDowngrading ? 'active' : 'inactive';
-    await syncAuthorizedUser(supabase, customer.email, stripeCustomerId, authStatus);
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+  let customerEmail = (subscription as any).customer_email || "";
+  
+  logStep("Attempting to sync authorized user", { customerId, initialEmail: customerEmail });
+
+  try {
+    if (!customerEmail) {
+      logStep("Fetching customer from Stripe API...", { customerId });
+      const customer = await stripe.customers.retrieve(customerId);
+      if (!customer.deleted && customer.email) {
+        customerEmail = customer.email;
+        logStep("Customer email retrieved successfully", { customerEmail });
+      } else {
+        logStep("Customer found but has no email or is deleted", { deleted: (customer as any).deleted });
+      }
+    }
+  } catch (err) {
+    logStep("ERROR: Stripe API retrieve failed. Check your STRIPE_SECRET_KEY.", { error: err.message });
+  }
+
+  if (customerEmail) {
+    const isAuthorizedStatus = ['active', 'trialing', 'incomplete'].includes(status);
+    const authStatus = isAuthorizedStatus && !isDowngrading ? 'active' : 'inactive';
+    
+    logStep("FINAL STEP: Upserting to authorized_users", { customerEmail, authStatus });
+    await syncAuthorizedUser(supabase, customerEmail, customerId, authStatus);
+  } else {
+    logStep("SKIPPING Whitelist Sync: No email found for customer.");
   }
 
   logStep("Processing subscription change", {

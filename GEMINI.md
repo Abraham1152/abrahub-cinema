@@ -1,34 +1,24 @@
-# SceneToScreen - Base de Conhecimento Central
+# ABRAhub Cinema - Contexto de Engenharia
 
-## 🚀 Visão Geral
-Aplicativo Desktop (.EXE) de alta performance para geração de storyboards e cenas cinematográficas via IA (Gemini BYOK).
+## 🎯 Objetivo Atual
+Migrar o sistema Lovable para uma infraestrutura própria (Supabase + GitHub/Vercel) no modelo **Local-First Web**. Os alunos usam o site, mas os arquivos pesados são deletados após 7 dias para economizar storage.
 
-## 🛠️ Stack Tecnológica
-- **Frontend:** React + TypeScript + Vite + TailwindCSS + Shadcn/UI
-- **Backend:** Supabase (PostgreSQL, Edge Functions, Auth, Storage)
-- **Desktop:** Electron (Empacotamento via Electron-Builder)
-- **Pagamentos:** Stripe (Webhooks e Checkouts integrados)
+## 🏗️ Arquitetura e Deploy
+- **Produção (Alunos):** Branch `main` -> GitHub Pages (https://abraham1152.github.io/abrahub-cinema/)
+- **Staging (Testes):** Branch `staging` -> Vercel (https://abrahub-cinema.vercel.app/)
+- **Banco de Dados:** Supabase projeto `vajxjtrztwfolhnkewnq`.
+- **Identidade:** O app foi renomeado de SceneToScreen para **ABRAhub Cinema**.
 
-## 🏗️ Arquitetura de Dados (Última Sincronização: 19/02/2026)
-- **Projeto Supabase:** `vajxjtrztwfolhnkewnq`
-- **Tabelas Críticas:** 
-  - `profiles`: Dados do usuário e preferências.
-  - `user_generated_images`: Registro de todas as gerações.
-  - `generation_queue` / `generation_jobs`: Sistema de fila e processamento.
-  - `storyboard_scenes`: Estrutura de cenas do projeto.
-- **Tipos TS:** Sincronizados em `src/integrations/supabase/types.ts`.
+## 🛠️ Configurações Críticas
+- **Staging/Vercel:** O `vite.config.ts` está configurado para `base: "/"`. O `vercel.json` foi removido para evitar conflitos de redirecionamento SPA.
+- **Imagens Presets:** 47 imagens no bucket `preset-images`.
+  - `/film_look/` (OK)
+  - `/focal/` (OK)
+  - `/angle/` (OK)
+  - `/camera/` (Links reais aplicados via script `apply_real_links.cjs`).
+- **Webhook Stripe:** Configurado com a chave `whsec_EvmVSFtzpAb4d7K2YtEqgOQ7z5imqf3k`. URL: `https://vajxjtrztwfolhnkewnq.supabase.co/functions/v1/stripe-webhook`.
 
-## 📡 Edge Functions (Ativas)
-- Total de 22 funções migradas e em produção no novo projeto.
-- Secrets configurados para Stripe e Gemini.
-
-## 📦 Instruções de Desenvolvimento
-1. **Rodar Dev:** `npm run electron:dev`
-2. **Atualizar Tipos do Banco:** `npx supabase gen types typescript --project-id vajxjtrztwfolhnkewnq --schema public > src/integrations/supabase/types.ts`
-3. **Gerar Executável:** `npm run dist`
-
-## 📝 Histórico de Mudanças Recentes
-- Migração completa do Lovable para Infraestrutura Local/Própria.
-- Correção de bugs estruturais no SQL original (upscale_status, generation_jobs).
-- Implementação de suporte a Deep Linking no Electron (`main.cjs`).
-- Desativação de confirmação de e-mail para facilitar o onboarding.
+## 🚨 Pendências Imediatas (Onde paramos)
+1. **Erro 401 na Vercel:** O site carrega (vencemos a tela branca), mas dá erro de autorização. **Ação:** O usuário precisa garantir que `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` na Vercel não tenham espaços e sejam as mesmas do `.env`.
+2. **Promoção Admin:** O e-mail `pezanella94@gmail.com` já foi promovido a admin via script local.
+3. **Backup de Usuários:** Aguardando lista de e-mails para importação em massa na `authorized_users`.
