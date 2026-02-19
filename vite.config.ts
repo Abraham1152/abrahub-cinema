@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "/abrahub-cinema/",
+  base: mode === 'production' && !process.env.VERCEL ? "/abrahub-cinema/" : "/",
   server: {
     host: "::",
     port: 8080,
