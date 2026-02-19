@@ -5,8 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Use relative path for all deployments to avoid 404s on subpaths
-  base: "./",
+  // Use absolute path for Vercel stability
+  base: "/",
   server: {
     host: "::",
     port: 8080,
