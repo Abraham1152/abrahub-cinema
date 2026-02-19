@@ -500,14 +500,14 @@ export function RealismFloatingBar({
               <Button 
                 onClick={onGenerate} 
                 disabled={isGenerating || !prompt.trim()} 
-                className="shrink-0 bg-gradient-to-r from-[#c8ff00] to-[#a8e600] text-black hover:from-[#d4ff33] hover:to-[#b8f000] font-bold px-6 h-11 rounded-xl text-base shadow-lg glow-lime"
+                className="shrink-0 bg-[#CCFF00] text-black hover:bg-[#DFFF33] font-black px-8 h-12 rounded-xl text-lg shadow-[0_0_20px_rgba(204,255,0,0.4)] transition-all active:scale-95"
               >
                 {isGenerating ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
                   <>
-                    <span className="mr-1">GENERATE</span>
-                    <Sparkles className="h-4 w-4" />
+                    <span className="mr-2">GENERATE</span>
+                    <Sparkles className="h-5 w-5 fill-current" />
                   </>
                 )}
               </Button>
