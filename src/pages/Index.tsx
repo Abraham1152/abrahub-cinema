@@ -320,7 +320,7 @@ export default function Index() {
                 prompt: img.prompt || existing?.prompt || '',
                 model: img.model || existing?.model || '',
                 modelLabel: img.model_label || existing?.modelLabel || 'ABRAhub Realism',
-                status: (img.status as GalleryItem['status']) || existing?.status || 'ready',
+                status: (img.status as GalleryItem['status']) || existing?.status,
                 errorMessage: img.error_message || existing?.errorMessage || undefined,
                 createdAt: img.created_at || existing?.createdAt || new Date().toISOString(),
                 creditsCost: img.credits_cost ?? existing?.creditsCost ?? 0,
@@ -629,23 +629,24 @@ export default function Index() {
             const data = result.value;
             const queueId = data.queueId;
             
-            // Keep the temporary card but update it to link with the queueId
+            // ATOMIC SWAP: Replace tempId with real queueId to enable Realtime updates
             setGalleryMap(prev => {
               const newMap = new Map(prev);
-              const existing = newMap.get(tempId);
+              const tempItem = newMap.get(tempId);
               
-              if (existing) {
-                // Update the temp card to show it's now in the server queue
-                newMap.set(tempId, {
-                  ...existing,
-                  status: 'generating', // Change from pending to generating
+              if (tempItem && queueId) {
+                // Remove temp card and insert real queue card with same data
+                newMap.delete(tempId);
+                optimisticQueueIdsRef.current.delete(tempId);
+                
+                newMap.set(queueId, {
+                  ...tempItem,
+                  id: queueId,
+                  status: 'generating', // Server has it now
                 });
                 
-                // Track this ID so we can bridge it later when the image is ready
-                if (queueId) {
-                  optimisticQueueIdsRef.current.add(tempId);
-                  queueToImageMapRef.current.set(queueId, tempId);
-                }
+                // Track the real queueId
+                optimisticQueueIdsRef.current.add(queueId);
               }
               return newMap;
             });
