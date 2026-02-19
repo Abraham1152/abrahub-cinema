@@ -1,0 +1,46 @@
+project_id = "rfwbllythvyqghadahhe"
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.cleanup-expired-credits]
+verify_jwt = false
+
+[functions.cleanup-expired-images]
+verify_jwt = false
+
+[functions.check-subscription]
+verify_jwt = false
+
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.customer-portal]
+verify_jwt = false
+
+[functions.studio-generate-image]
+verify_jwt = false
+
+[functions.queue-image-generation]
+verify_jwt = false
+
+[functions.process-generation-queue]
+verify_jwt = false
+
+[functions.get-queue-status]
+verify_jwt = false
+
+[functions.classify-reference-image]
+verify_jwt = false
+
+[functions.verify-first-access]
+verify_jwt = false
+
+[functions.queue-wakeup]
+verify_jwt = false
+
+[functions.create-credits-checkout]
+verify_jwt = false
+
+[functions.validate-api-key]
+verify_jwt = false

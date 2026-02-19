@@ -1,0 +1,548 @@
+import { useState, useRef, useCallback, useEffect, DragEvent } from 'react';
+import { Trash2, GripHorizontal, Plus, X, Loader2, Star, Download, Image as ImageIcon, Sparkles, Upload, Copy, Link2Off, Link2, Palette } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ImagePickerModal } from './ImagePickerModal';
+import { ImageViewerModal } from './ImageViewerModal';
+import { StoryboardEquipmentBar } from './StoryboardEquipmentBar';
+import type { StoryboardScene, StoryboardSceneImage, SceneReference } from '@/hooks/useStoryboard';
+
+const ASPECT_RATIOS = [
+  { value: '16:9', label: '16:9' },
+  { value: '9:16', label: '9:16' },
+  { value: '1:1', label: '1:1' },
+  { value: '4:3', label: '4:3' },
+  { value: '3:4', label: '3:4' },
+  { value: '21:9', label: '21:9' },
+];
+
+interface SceneBlockProps {
+  scene: StoryboardScene;
+  images: StoryboardSceneImage[];
+  references: SceneReference[];
+  index: number;
+  isDraggable: boolean;
+  zoom: number;
+  computedPosition?: { x: number; y: number };
+  isGenerating: boolean;
+  onUpdate: (id: string, updates: Partial<StoryboardScene>) => void;
+  onDelete: (id: string) => void;
+  onAddReference: (sceneId: string, imageId: string, previewUrl?: string, prompt?: string) => void;
+  onRemoveReference: (sceneId: string, refId: string) => void;
+  onGenerateImage: (sceneId: string) => void;
+  onSetPrimary: (sceneId: string, imageId: string) => void;
+  onRemoveImage: (imageId: string, sceneId: string) => void;
+  onUploadFileAsReference: (sceneId: string, file: File) => void;
+  onChangeStyleAnchor: (sceneId: string, imageId: string, previewUrl?: string) => void;
+  onCreateFromScene: (sceneId: string) => void;
+  // Connection ports
+  onStartConnectionDrag: (sceneId: string, e: React.MouseEvent) => void;
+  onDropConnection: (toSceneId: string) => void;
+  isDraggingConnection: boolean;
+  draggingFromId: string | null;
+}
+
+export function SceneBlock({
+  scene, images, references, index, isDraggable, zoom, computedPosition, isGenerating,
+  onUpdate, onDelete, onAddReference, onRemoveReference,
+  onGenerateImage, onSetPrimary, onRemoveImage, onUploadFileAsReference,
+  onChangeStyleAnchor,
+  onCreateFromScene,
+  onStartConnectionDrag, onDropConnection, isDraggingConnection, draggingFromId,
+}: SceneBlockProps) {
+  const [localPrompt, setLocalPrompt] = useState(scene.prompt_base || '');
+  const [viewerImage, setViewerImage] = useState<{ full: string; download?: string } | null>(null);
+  const [refPickerOpen, setRefPickerOpen] = useState(false);
+  const [styleAnchorPickerOpen, setStyleAnchorPickerOpen] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const promptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  useEffect(() => { setLocalPrompt(scene.prompt_base || ''); }, [scene.id, scene.prompt_base]);
+
+  // Debounced prompt save
+  const handlePromptChange = useCallback((value: string) => {
+    setLocalPrompt(value);
+    if (promptTimerRef.current) clearTimeout(promptTimerRef.current);
+    promptTimerRef.current = setTimeout(() => {
+      onUpdate(scene.id, { prompt_base: value } as any);
+    }, 500);
+  }, [scene.id, onUpdate]);
+
+  // Drag handling
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isDraggable) return;
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
+    if ((e.target as HTMLElement).closest('[data-connection-port]')) return;
+    e.stopPropagation();
+    const origX = (scene.position_x !== 0 || scene.position_y !== 0) ? scene.position_x : (computedPosition?.x ?? scene.position_x);
+    const origY = (scene.position_x !== 0 || scene.position_y !== 0) ? scene.position_y : (computedPosition?.y ?? scene.position_y);
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX, origY };
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = (ev.clientX - dragRef.current.startX) / zoom;
+      const dy = (ev.clientY - dragRef.current.startY) / zoom;
+      onUpdate(scene.id, { position_x: dragRef.current.origX + dx, position_y: dragRef.current.origY + dy });
+    };
+    const handleMouseUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [scene.id, scene.position_x, scene.position_y, computedPosition, zoom, onUpdate, isDraggable]);
+
+  const generatedImages = images.filter(i => i.role !== 'inherited');
+  const inheritedImages = images.filter(i => i.role === 'inherited');
+  const primaryImage = generatedImages.find(i => i.is_primary);
+
+  // Is this scene a valid drop target for the current connection drag?
+  const isValidDropTarget = isDraggingConnection && draggingFromId && draggingFromId !== scene.id;
+  const hasParent = !!scene.parent_scene_id;
+
+  return (
+    <div
+      className="relative bg-background/95 backdrop-blur-md border-2 border-border rounded-xl shadow-xl transition-shadow w-[360px]"
+      onMouseDown={handleMouseDown}
+    >
+      {/* OUTPUT PORT - Right side (drag to start connection) */}
+      <div
+        data-connection-port
+        className="absolute -right-3 top-[36px] z-10 group cursor-crosshair"
+        onMouseDown={(e) => onStartConnectionDrag(scene.id, e)}
+        title="Arraste para conectar a outra cena"
+      >
+        <div className="w-6 h-6 rounded-full border-2 border-primary/40 bg-background flex items-center justify-center transition-all group-hover:border-primary group-hover:scale-125 group-hover:shadow-[0_0_8px_hsl(var(--primary)/0.4)]">
+          <div className="w-2.5 h-2.5 rounded-full bg-primary/50 group-hover:bg-primary transition-colors" />
+        </div>
+      </div>
+
+      {/* INPUT PORT - Left side (drop target) */}
+      <div
+        data-connection-port
+        className={`absolute -left-3 top-[36px] z-10 transition-all ${
+          isValidDropTarget ? 'scale-125' : ''
+        }`}
+        onMouseUp={() => {
+          if (isValidDropTarget) onDropConnection(scene.id);
+        }}
+      >
+        <div className={`w-6 h-6 rounded-full border-2 bg-background flex items-center justify-center transition-all ${
+          isValidDropTarget
+            ? 'border-primary scale-110 shadow-[0_0_12px_hsl(var(--primary)/0.5)] cursor-pointer'
+            : 'border-muted-foreground/30'
+        }`}>
+          <div className={`w-2.5 h-2.5 rounded-full transition-colors ${
+            isValidDropTarget ? 'bg-primary animate-pulse' : 'bg-muted-foreground/20'
+          }`} />
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className={`flex items-center gap-2 px-3 py-2 border-b border-border ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+        {isDraggable && <GripHorizontal className="h-4 w-4 text-muted-foreground/50 shrink-0" />}
+        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold shrink-0">
+          {index + 1}
+        </div>
+        <Input
+          data-no-drag
+          value={scene.title}
+          onChange={e => onUpdate(scene.id, { title: e.target.value })}
+          className="h-7 text-sm font-medium border-none bg-transparent px-1 focus-visible:ring-0 max-w-[120px]"
+        />
+        {/* Aspect ratio */}
+        <div className="ml-auto shrink-0" data-no-drag>
+          <Select
+            value={scene.aspect_ratio || '16:9'}
+            onValueChange={v => onUpdate(scene.id, { aspect_ratio: v } as any)}
+          >
+            <SelectTrigger className="h-7 w-[70px] text-[10px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASPECT_RATIOS.map(r => (
+                <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          data-no-drag
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-destructive/60 hover:text-destructive"
+          onClick={() => onDelete(scene.id)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Equipment Bar - only on root scenes */}
+      {!hasParent && (
+        <StoryboardEquipmentBar
+          styleData={(scene.style_data as any) || {}}
+          onChange={(updates) => {
+            const currentStyleData = (scene.style_data as any) || {};
+            onUpdate(scene.id, { style_data: { ...currentStyleData, ...updates } } as any);
+          }}
+        />
+      )}
+
+      {/* Inheritance Controls - child scenes */}
+      {hasParent && (
+        <div className="border-b border-border">
+          <div className="flex flex-col gap-1 px-3 py-1.5 bg-secondary/30" data-no-drag>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              {scene.inherit_style ? (
+                <Link2 className="h-3 w-3 text-primary shrink-0" />
+              ) : (
+                <Link2Off className="h-3 w-3 text-muted-foreground shrink-0" />
+              )}
+              <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+                Herança
+              </span>
+              <Switch
+                checked={scene.inherit_style}
+                onCheckedChange={(checked) => onUpdate(scene.id, { inherit_style: checked } as any)}
+                className="scale-75 ml-auto"
+              />
+            </div>
+            {scene.inherit_style && (
+              <div className="flex gap-3 pl-4">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <Checkbox
+                    checked={((scene.style_data as any)?.inherit_character) !== false}
+                    onCheckedChange={(checked) => {
+                      const current = (scene.style_data as any) || {};
+                      onUpdate(scene.id, { style_data: { ...current, inherit_character: !!checked } } as any);
+                    }}
+                    className="h-3 w-3"
+                  />
+                  <span className="text-[9px] text-muted-foreground">Personagem</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <Checkbox
+                    checked={((scene.style_data as any)?.inherit_environment) !== false}
+                    onCheckedChange={(checked) => {
+                      const current = (scene.style_data as any) || {};
+                      onUpdate(scene.id, { style_data: { ...current, inherit_environment: !!checked } } as any);
+                    }}
+                    className="h-3 w-3"
+                  />
+                  <span className="text-[9px] text-muted-foreground">Cenário</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <Checkbox
+                    checked={true}
+                    disabled
+                    className="h-3 w-3 opacity-60"
+                  />
+                  <span className="text-[9px] text-muted-foreground opacity-60">Estilo</span>
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Prompt Base */}
+      <div className="px-3 py-2" data-no-drag>
+        <label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mb-1 block">
+          Prompt Base
+        </label>
+        <Textarea
+          placeholder="Descreva a cena que quer gerar..."
+          value={localPrompt}
+          onChange={e => handlePromptChange(e.target.value)}
+          className="min-h-[60px] text-xs resize-none border-border bg-secondary/30 focus-visible:ring-1 focus-visible:ring-primary"
+          rows={3}
+        />
+      </div>
+
+      {/* Style Anchor */}
+      {hasParent && (
+        <div className="px-3 pb-1.5" data-no-drag>
+          <div className="flex items-center justify-between mb-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1 cursor-help">
+                    <Palette className="h-3 w-3 text-primary/60" />
+                    Âncora de Estilo
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-[200px]">
+                  Estilo visual herdado (iluminação, cor, câmera). Clique em + para trocar.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => setStyleAnchorPickerOpen(true)}
+              title="Trocar âncora de estilo"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          {inheritedImages.length > 0 ? (
+            <div className="flex gap-1.5">
+              {inheritedImages.map(img => (
+                <div key={img.id} className="relative w-16 h-16">
+                  <div className="w-full h-full rounded-md overflow-hidden border-2 border-dashed border-primary/30 bg-primary/5 cursor-pointer opacity-80"
+                    onClick={() => {
+                      const url = img.master_url || img.image_url;
+                      if (url) setViewerImage({ full: url });
+                    }}
+                  >
+                    {(img.image_url || img.master_url) ? (
+                      <img src={img.image_url || img.master_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="h-3 w-3 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </div>
+                  <Badge variant="secondary" className="absolute -bottom-1 left-0 right-0 mx-auto w-fit text-[7px] px-1 py-0 h-3.5 bg-primary/10 text-primary border-primary/20">
+                    Estilo
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              className="border-2 border-dashed border-primary/20 rounded-md p-2 text-center cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => setStyleAnchorPickerOpen(true)}
+            >
+              <Palette className="h-4 w-4 mx-auto mb-0.5 text-muted-foreground/40" />
+              <span className="text-[9px] text-muted-foreground/60">Escolher âncora de estilo</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* References */}
+      <div
+        className="px-3 pb-2"
+        data-no-drag
+        onDragOver={(e: DragEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (references.length < 3) setIsDragOver(true);
+        }}
+        onDragLeave={(e: DragEvent) => {
+          e.preventDefault();
+          setIsDragOver(false);
+        }}
+        onDrop={(e: DragEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file && file.type.startsWith('image/')) {
+            onUploadFileAsReference(scene.id, file);
+          }
+        }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">
+            Referências ({references.length}/3)
+          </span>
+          {references.length < 3 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => setRefPickerOpen(true)}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+        {references.length > 0 ? (
+          <div className="flex gap-1.5">
+            {references.map(ref => (
+              <div key={ref.id} className="relative group w-16 h-16">
+                <div
+                  className="w-full h-full rounded-md overflow-hidden border border-border bg-secondary cursor-pointer"
+                  onClick={() => ref.preview_url && setViewerImage({ full: ref.preview_url })}
+                >
+                  {ref.preview_url ? (
+                    <img src={ref.preview_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon className="h-3 w-3 text-muted-foreground/30" />
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute -top-1 -right-1 h-4 w-4 bg-background/90 border border-border rounded-full opacity-0 group-hover:opacity-100"
+                  onClick={() => onRemoveReference(scene.id, ref.id)}
+                >
+                  <X className="h-2.5 w-2.5" />
+                </Button>
+              </div>
+            ))}
+            {references.length < 3 && (
+              <div
+                className={`w-16 h-16 rounded-md border-2 border-dashed flex items-center justify-center transition-colors cursor-pointer ${
+                  isDragOver ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => setRefPickerOpen(true)}
+              >
+                <Upload className="h-3 w-3 text-muted-foreground/40" />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className={`border-2 border-dashed rounded-md p-3 text-center cursor-pointer transition-colors ${
+              isDragOver ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => setRefPickerOpen(true)}
+          >
+            <Upload className="h-4 w-4 mx-auto mb-1 text-muted-foreground/40" />
+            <span className="text-[9px] text-muted-foreground/60">
+              {isDragOver ? 'Solte a imagem aqui' : 'Arraste imagens ou clique para adicionar'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Generate */}
+      <div className="px-3 pb-2" data-no-drag>
+        <Button
+          className="w-full gap-1.5 text-xs"
+          size="sm"
+          onClick={() => onGenerateImage(scene.id)}
+          disabled={isGenerating || !localPrompt.trim()}
+        >
+          {isGenerating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          {isGenerating ? 'Gerando...' : 'Gerar Imagem'}
+        </Button>
+      </div>
+
+      {/* Generated Images Grid */}
+      {generatedImages.length > 0 && (
+        <div className="px-3 pb-3 border-t border-border pt-2" data-no-drag>
+          <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">
+            Imagens geradas ({generatedImages.length})
+          </span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {generatedImages.map(img => (
+              <div key={img.id} className="relative group aspect-square">
+                {/* Clickable image layer */}
+                <div
+                  className={`w-full h-full rounded-md overflow-hidden border-2 cursor-pointer transition-colors ${
+                    img.is_primary ? 'border-primary' : 'border-border hover:border-primary/50'
+                  }`}
+                  onClick={() => {
+                    const fullUrl = img.master_url || img.image_url;
+                    if (fullUrl) setViewerImage({ full: fullUrl, download: img.master_url || undefined });
+                  }}
+                >
+                  {img.image_url ? (
+                    <img src={img.image_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-secondary">
+                      <ImageIcon className="h-4 w-4 text-muted-foreground/30" />
+                    </div>
+                  )}
+                </div>
+                {/* Actions overlay - only the buttons are clickable */}
+                <div className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-md bg-gradient-to-t from-black/60 to-transparent flex items-end justify-center gap-1 pb-1 pt-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-white hover:text-yellow-400"
+                    onClick={e => { e.stopPropagation(); onSetPrimary(scene.id, img.id); }}
+                    title="Marcar como principal"
+                  >
+                    <Star className={`h-3 w-3 ${img.is_primary ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                  </Button>
+                  {img.master_url && (
+                    <a
+                      href={img.master_url}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Button variant="ghost" size="icon" className="h-5 w-5 text-white hover:text-blue-400" title="Download">
+                        <Download className="h-3 w-3" />
+                      </Button>
+                    </a>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-white hover:text-red-400"
+                    onClick={e => { e.stopPropagation(); onRemoveImage(img.id, scene.id); }}
+                    title="Remover"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Scene Actions Footer */}
+      <div className="px-3 pb-2 flex gap-1.5 border-t border-border pt-2" data-no-drag>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 gap-1.5 text-[10px] h-7"
+          onClick={() => onCreateFromScene(scene.id)}
+          title="Criar nova cena herdando estilo e imagem principal como referência"
+        >
+          <Copy className="h-3 w-3" />
+          Continuação
+        </Button>
+      </div>
+
+      {/* Reference Picker Modal */}
+      <ImagePickerModal
+        open={refPickerOpen}
+        onOpenChange={setRefPickerOpen}
+        onSelectImage={(img) => {
+          onAddReference(scene.id, img.id, img.preview_url || img.master_url || undefined, img.prompt);
+        }}
+      />
+
+      {/* Style Anchor Picker Modal */}
+      <ImagePickerModal
+        open={styleAnchorPickerOpen}
+        onOpenChange={setStyleAnchorPickerOpen}
+        onSelectImage={(img) => {
+          onChangeStyleAnchor(scene.id, img.id, img.preview_url || img.master_url || undefined);
+        }}
+      />
+
+      {/* Full-res Image Viewer */}
+      <ImageViewerModal
+        open={!!viewerImage}
+        imageUrl={viewerImage?.full || null}
+        downloadUrl={viewerImage?.download || null}
+        onClose={() => setViewerImage(null)}
+      />
+    </div>
+  );
+}
