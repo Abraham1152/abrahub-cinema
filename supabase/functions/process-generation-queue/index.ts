@@ -85,14 +85,25 @@ function getQualityConfig(quality: string, aspectRatio: string) {
   return { width: res[0], height: res[1], creditMultiplier: multiplier };
 }
 
-function buildAestheticPrompt(userSceneDescription: string, preset: CinemaPreset, focalLength: string, aperture: string, isUltrawide: boolean, referencePromptInjection?: string | null, cameraAngle: string = 'eye-level', filmLookDescription?: string | null): string {
+function buildAestheticPrompt(userSceneDescription: string, preset: CinemaPreset, focalLength: string, aperture: string, isUltrawide: boolean, referencePromptInjection?: string | null, cameraAngle: string = 'eye-level', filmLookDescription?: string | null, isStoryboard6: boolean = false): string {
   const parts: string[] = [`Cinematic film still captured from a live-action movie.`];
-  if (isUltrawide) parts.push(`Compose the scene to fully occupy a wide cinematic frame.`);
+  
+  if (isStoryboard6) {
+    parts.push(`CRITICAL: Generate a STORYBOARD SHEET with 6 DISTINCT PANELS arranged in a 2x3 grid layout.`);
+    parts.push(`Each panel should show a variation of the same scene but with slight changes in composition or timing.`);
+    parts.push(`Display all 6 panels together in a single image frame with clean white or black borders between them.`);
+  } else if (isUltrawide) {
+    parts.push(`Compose the scene to fully occupy a wide cinematic frame.`);
+  }
+
   if (referencePromptInjection) {
     parts.push(`=== REFERENCE IMAGE INSTRUCTIONS ===\n${referencePromptInjection}\nIMPORTANT: You MUST generate an IMAGE based on the instructions above.`);
   }
+  
   parts.push(`Ultra-realistic human appearance. No posing, candid expression.\n${userSceneDescription}\n=== CAMERA RIG ===\nCamera: ${preset.cameraBody}\nLens: ${preset.lensType}`);
+  
   if (filmLookDescription) parts.push(`=== COLOR GRADING & FILM LOOK ===\n${filmLookDescription}`);
+  
   return parts.join('\n\n');
 }
 
@@ -106,7 +117,9 @@ interface GeminiImageResult { base64: string; mimeType: string; rawBytes: Uint8A
 async function generateWithGeminiAPI(prompt: string, aspectRatio: string, quality: string, apiKey: string, presetId: string, focalLength: string, aperture: string, referenceImages?: string[], referenceType?: string | null, referencePromptInjection?: string | null, cameraAngle: string = 'eye-level', filmLookDescription?: string | null, forceImageOnly: boolean = false): Promise<GeminiImageResult> {
   const preset = getPresetById(presetId);
   const qualityConfig = getQualityConfig(quality, aspectRatio);
-  const aestheticPrompt = buildAestheticPrompt(prompt, preset, focalLength, aperture, aspectRatio === '21:9', referencePromptInjection, cameraAngle, filmLookDescription);
+  const isStoryboard6 = referenceType === 'storyboard6';
+  
+  const aestheticPrompt = buildAestheticPrompt(prompt, preset, focalLength, aperture, aspectRatio === '21:9', referencePromptInjection, cameraAngle, filmLookDescription, isStoryboard6);
   
   const fullPrompt = `${SYSTEM_PROMPT}\n\n${aestheticPrompt}\n\nDO NOT include: ${NEGATIVE_PROMPT}\n\nTechnical requirements: Generate image at ${qualityConfig.width}x${qualityConfig.height} resolution.`;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_CONFIG.modelId}:generateContent`;

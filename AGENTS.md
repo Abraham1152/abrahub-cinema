@@ -32,6 +32,9 @@ We operate with three distinct paid tiers. Access is restricted via a whitelist 
 - **Onboarding:** Specialized modal inviting new paid users to set up their Gemini Key.
 
 ## 🛠️ Recent Milestones
+- **GRID Mode Implementation:** Updated `process-generation-queue` with a specialized prompt injection for `storyboard6` mode, forcing Gemini to generate 2x3 grid layouts.
+- **Async Queue Flow:** Refactored `queue-image-generation` into a fast broker and updated `Index.tsx` to handle async state, maintaining the "Generating..." card until completion.
+- **UI Bug Fix:** Removed the automatic image download behavior when clicking Generate in the Studio.
 - **Critical Stability:** Fixed "white screen" issue by locking `base: "./"` in `vite.config.ts`.
 - **Storyboard Cleanup:** Removed "Continuação" button from nodes.
 - **Tier Simplification:** System now exclusively supports Community, PRO, and PRO+ tiers.

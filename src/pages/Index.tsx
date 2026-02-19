@@ -204,7 +204,7 @@ export default function Index() {
 
       (imagesData || [])
         .filter(img => !isExpired(img.created_at, 30))
-        .filter(img => img.master_url || img.url)
+        .filter(img => img.status === 'generating' || img.master_url || img.url)
         .forEach((img) => {
           const imageUrl = img.master_url || img.url || undefined;
           newMap.set(img.id, {
@@ -585,6 +585,9 @@ export default function Index() {
         newMap.set(tempId, instantItem);
         return newMap;
       });
+
+      // REGRA CRÍTICA: Adicionar ao Ref IMEDIATAMENTE para que fetchGalleryItems não remova o card
+      optimisticQueueIdsRef.current.add(tempId);
     }
 
     // Process API calls in background - don't await, user can continue
