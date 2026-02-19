@@ -4,9 +4,12 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: "./",
-  server: {
+export default defineConfig(({ mode }) => {
+  // Use absolute path for Vercel, relative for GitHub/Local
+  const isVercel = process.env.VERCEL === '1';
+  return {
+    base: isVercel ? "/" : "./",
+    server: {
     host: "::",
     port: 8080,
     hmr: {

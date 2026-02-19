@@ -1,7 +1,15 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/presets/(.*)",
+      "destination": "/presets/$1"
+    },
+    {
+      "source": "/((?!api|assets|presets|favicon).*)",
       "destination": "/index.html"
     }
   ]
