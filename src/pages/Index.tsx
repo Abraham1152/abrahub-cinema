@@ -41,6 +41,7 @@ export default function Index() {
   const [sequenceKeepScenery, setSequenceKeepScenery] = useState(false);
   const [storyboard6Mode, setStoryboard6Mode] = useState(false);
   const [hasValidApiKey, setHasValidApiKey] = useState(false);
+  const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Preset-based equipment state
@@ -108,6 +109,7 @@ export default function Index() {
     if (!user?.id) return;
     
     const checkApiKey = async () => {
+      setIsCheckingApiKey(true);
       // Fetch both API key status and entitlements in parallel to avoid multiple re-renders
       const [apiKeyResult, entitlementResult] = await Promise.all([
         supabase
@@ -143,6 +145,7 @@ export default function Index() {
           localStorage.setItem('byok_onboarding_seen', 'true');
         }
       }
+      setIsCheckingApiKey(false);
     };
     
     checkApiKey();
@@ -895,7 +898,7 @@ export default function Index() {
     <div className="min-h-screen bg-background">
       <Header user={user} />
 
-      {!hasValidApiKey && !authLoading && (
+      {!hasValidApiKey && !authLoading && !isCheckingApiKey && (
         <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-500">
           <Sparkles className="h-4 w-4 text-yellow-500" />
           <p className="text-xs font-medium text-yellow-500 text-center">
