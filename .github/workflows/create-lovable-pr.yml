@@ -1,6 +1,4 @@
 name: Create Lovable PR
-
-# Run manually from Actions tab (workflow_dispatch)
 on:
   workflow_dispatch:
 
@@ -13,29 +11,53 @@ jobs:
   create-pr:
     runs-on: ubuntu-latest
     env:
-      REPO: ${{ github.repository }}
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Create files and open PR (via github-script)
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const repo = context.repo;
+            const octokit = github.getOctokit(process.env.GH_TOKEN);
 
-      - name: Create files and open PR
-        run: |
-          set -euo pipefail
-          REPO="${REPO}"
-          GH_TOKEN="${GH_TOKEN}"
-          # determine base branch (default branch)
-          DEFAULT_BRANCH=$(curl -s -H "Authorization: token ${GH_TOKEN}" "https://api.github.com/repos/${REPO}" | python -c "import sys, json; print(json.load(sys.stdin).get('default_branch','main'))")
-          BRANCH="lovable/$(date +%s)"
+            // get default branch
+            const { data: repoInfo } = await octokit.rest.repos.get({
+              owner: repo.owner,
+              repo: repo.repo
+            });
+            const defaultBranch = repoInfo.default_branch || 'main';
+            const newBranch = `lovable/${Date.now()}`;
 
-          git config user.name "lovable-bot"
-          git config user.email "lovable-bot@example.com"
-          git checkout -b "${BRANCH}"
+            // get SHA of default branch
+            const { data: ref } = await octokit.rest.git.getRef({
+              owner: repo.owner,
+              repo: repo.repo,
+              ref: `heads/${defaultBranch}`
+            });
+            const sha = ref.object.sha;
 
-          mkdir -p .github/lovable
-          # lovable workflow (issue comment handler)
-          cat > .github/workflows/lovable.yml <<'YAML'
-name: Lovable Command Handler
+            // create new branch (ref)
+            await octokit.rest.git.createRef({
+              owner: repo.owner,
+              repo: repo.repo,
+              ref: `refs/heads/${newBranch}`,
+              sha
+            });
+
+            // helper to create files on the new branch
+            async function createFile(path, content, message) {
+              await octokit.rest.repos.createOrUpdateFileContents({
+                owner: repo.owner,
+                repo: repo.repo,
+                path,
+                message,
+                content: Buffer.from(content, 'utf8').toString('base64'),
+                branch: newBranch
+              });
+            }
+
+            // File contents (small, adjust if needed)
+            const lovableWorkflow = `name: Lovable Command Handler
 
 on:
   issue_comment:
@@ -57,16 +79,14 @@ jobs:
           node-version: '18'
       - name: Run lovable handler
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LOVABLE_COMMENT: ${{ github.event.comment.body }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          LOVABLE_COMMENT: \${{ github.event.comment.body }}
+          ISSUE_NUMBER: \${{ github.event.issue.number }}
+          GITHUB_REPOSITORY: \${{ github.repository }}
         run: node .github/lovable/handler.js
-YAML
+`;
 
-          # handler script
-          cat > .github/lovable/handler.js <<'JS'
-#!/usr/bin/env node
+            const handlerJs = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -84,9 +104,9 @@ const issueNumber = process.env.ISSUE_NUMBER;
 async function replyToIssue(body) {
   if (!issueNumber) return;
   const [owner, repoName] = repo.split('/');
-  await fetch(`https://api.github.com/repos/${owner}/${repoName}/issues/${issueNumber}/comments`, {
+  await fetch(\`https://api.github.com/repos/\${owner}/\${repoName}/issues/\${issueNumber}/comments\`, {
     method: 'POST',
-    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'lovable-bot' },
+    headers: { Authorization: \`token \${token}\`, 'Content-Type': 'application/json', 'User-Agent': 'lovable-bot' },
     body: JSON.stringify({ body }),
   });
 }
@@ -99,79 +119,71 @@ async function replyToIssue(body) {
     const cmd = parts[1];
 
     if (!cmd) {
-      await replyToIssue('Comando `/lovable` inválido. Use `/lovable create-file <path>` com um bloco de código contendo o conteúdo do arquivo.');
+      await replyToIssue('Comando \`/lovable\` inválido. Use \`/lovable create-file <path>\` com um bloco de código contendo o conteúdo do arquivo.');
       return;
     }
 
     if (cmd === 'create-file') {
       const targetPath = parts[2];
       if (!targetPath) {
-        await replyToIssue('Uso: `/lovable create-file path/to/file.ext` + bloco de código com o conteúdo.');
+        await replyToIssue('Uso: \`/lovable create-file path/to/file.ext\` + bloco de código com o conteúdo.');
         return;
       }
 
-      const codeMatch = comment.match(/```(?:\w*\n)?([\\s\\S]*?)```/);
+      const codeMatch = comment.match(/```(?:\\w*\\n)?([\\s\\S]*?)```/);
       const content = codeMatch ? codeMatch[1] : null;
       if (content === null) {
         await replyToIssue('Nenhum bloco de código encontrado. Coloque o conteúdo do arquivo dentro de ``` ```.');
         return;
       }
 
-      const branch = `lovable/${Date.now()}`;
+      const branch = \`lovable/\${Date.now()}\`;
       execSync('git config user.name "lovable-bot"');
       execSync('git config user.email "lovable-bot@example.com"');
-      execSync(`git checkout -b ${branch}`);
+      execSync(\`git checkout -b \${branch}\`);
 
       const fullPath = path.join(process.cwd(), targetPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, content, 'utf8');
 
-      execSync(`git add ${targetPath}`);
-      execSync(`git commit -m "lovable: create ${targetPath}"`);
+      execSync(\`git add \${targetPath}\`);
+      execSync(\`git commit -m "lovable: create \${targetPath}"\`);
 
-      execSync(`git push https://${token}@github.com/${repo}.git HEAD:refs/heads/${branch}`, { stdio: 'inherit' });
+      execSync(\`git push https://\${token}@github.com/\${repo}.git HEAD:refs/heads/\${branch}\`, { stdio: 'inherit' });
 
       const [owner, repoName] = repo.split('/');
-      const repoResp = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
-        headers: { Authorization: `token ${token}`, 'User-Agent': 'lovable-bot' }
-      });
-      const repoJson = await repoResp.json();
-      const base = repoJson.default_branch || 'main';
-
-      const prResp = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pulls`, {
+      const prResp = await fetch(\`https://api.github.com/repos/\${owner}/\${repoName}/pulls\`, {
         method: 'POST',
-        headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'lovable-bot' },
+        headers: { Authorization: \`token \${token}\`, 'Content-Type': 'application/json', 'User-Agent': 'lovable-bot' },
         body: JSON.stringify({
-          title: `lovable: create ${targetPath}`,
+          title: \`lovable: create \${targetPath}\`,
           head: branch,
-          base,
-          body: `Arquivo criado via comando /lovable create-file ${targetPath}`
+          base: 'main',
+          body: \`Arquivo criado via comando /lovable create-file \${targetPath}\`
         })
       });
       const prJson = await prResp.json();
 
-      await replyToIssue(`PR criado: ${prJson.html_url}`);
+      await replyToIssue(\`PR criado: \${prJson.html_url}\`);
       console.log('PR:', prJson.html_url);
       return;
     }
 
-    await replyToIssue(`Comando \`${cmd}\` não suportado. Atualmente suportado: \`create-file\`.`);
+    await replyToIssue(\`Comando \\\`\${cmd}\\\` não suportado. Atualmente suportado: \\\`create-file\\\`.\`);
   } catch (err) {
     console.error(err);
-    await replyToIssue(`Erro ao executar o comando: ${err.message}`);
+    await replyToIssue(\`Erro ao executar o comando: \${err.message}\`);
     process.exit(1);
   }
 })();
-JS
+`;
 
-          # supabase migrations workflow (runs on push to default branch)
-          cat > .github/workflows/supabase-migrations.yml <<'YAML'
-name: Supabase Migrations
+            const migrationsWorkflow = `name: Supabase Migrations
 
 on:
   push:
     branches:
-      - '${DEFAULT_BRANCH}' # replaced at runtime below by push step
+      - '${defaultBranch}'
 
 permissions:
   contents: read
@@ -200,12 +212,38 @@ jobs:
           else
             echo "No migrations folder found; skipping."
           fi
-YAML
+`;
 
-          # README_LOVABLE
-          cat > README_LOVABLE.md <<'MD'
-Lovable bot — Setup rápido
+            const readme = `Lovable bot — Setup rápido
 
 Usage:
 - Add files via issue comments:
   /lovable create-file path/to/file.ext
+  \`\`\`
+  file content here
+  \`\`\`
+
+Secrets required (repository):
+- GH_TOKEN (Personal Access Token) — already added.
+- SUPABASE_SERVICE_ROLE_KEY — for CI migrations.
+- VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY — client keys.
+`;
+
+            // create files
+            await createFile('.github/workflows/lovable.yml', lovableWorkflow, 'Add lovable workflow');
+            await createFile('.github/lovable/handler.js', handlerJs, 'Add lovable handler script');
+            await createFile('.github/workflows/supabase-migrations.yml', migrationsWorkflow, 'Add supabase migrations workflow');
+            await createFile('README_LOVABLE.md', readme, 'Add README_LOVABLE');
+
+            // open PR
+            const pr = await octokit.rest.pulls.create({
+              owner: repo.owner,
+              repo: repo.repo,
+              title: 'lovable: add workflows and handler',
+              head: newBranch,
+              base: defaultBranch,
+              body: 'Add lovable workflows and handler (automated)'
+            });
+
+            core.setOutput('pr_url', pr.data.html_url);
+            console.log('PR created:', pr.data.html_url);
