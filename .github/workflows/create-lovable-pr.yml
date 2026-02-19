@@ -1,0 +1,211 @@
+name: Create Lovable PR
+
+# Run manually from Actions tab (workflow_dispatch)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    env:
+      REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Create files and open PR
+        run: |
+          set -euo pipefail
+          REPO="${REPO}"
+          GH_TOKEN="${GH_TOKEN}"
+          # determine base branch (default branch)
+          DEFAULT_BRANCH=$(curl -s -H "Authorization: token ${GH_TOKEN}" "https://api.github.com/repos/${REPO}" | python -c "import sys, json; print(json.load(sys.stdin).get('default_branch','main'))")
+          BRANCH="lovable/$(date +%s)"
+
+          git config user.name "lovable-bot"
+          git config user.email "lovable-bot@example.com"
+          git checkout -b "${BRANCH}"
+
+          mkdir -p .github/lovable
+          # lovable workflow (issue comment handler)
+          cat > .github/workflows/lovable.yml <<'YAML'
+name: Lovable Command Handler
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  handle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Run lovable handler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOVABLE_COMMENT: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .github/lovable/handler.js
+YAML
+
+          # handler script
+          cat > .github/lovable/handler.js <<'JS'
+#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const comment = process.env.LOVABLE_COMMENT || '';
+if (!comment.startsWith('/lovable')) {
+  console.log('No /lovable command found.');
+  process.exit(0);
+}
+
+const token = process.env.GITHUB_TOKEN;
+const repo = process.env.GITHUB_REPOSITORY;
+const issueNumber = process.env.ISSUE_NUMBER;
+
+async function replyToIssue(body) {
+  if (!issueNumber) return;
+  const [owner, repoName] = repo.split('/');
+  await fetch(`https://api.github.com/repos/${owner}/${repoName}/issues/${issueNumber}/comments`, {
+    method: 'POST',
+    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'lovable-bot' },
+    body: JSON.stringify({ body }),
+  });
+}
+
+(async () => {
+  try {
+    const lines = comment.split('\\n');
+    const first = lines[0].trim();
+    const parts = first.split(' ').filter(Boolean);
+    const cmd = parts[1];
+
+    if (!cmd) {
+      await replyToIssue('Comando `/lovable` inválido. Use `/lovable create-file <path>` com um bloco de código contendo o conteúdo do arquivo.');
+      return;
+    }
+
+    if (cmd === 'create-file') {
+      const targetPath = parts[2];
+      if (!targetPath) {
+        await replyToIssue('Uso: `/lovable create-file path/to/file.ext` + bloco de código com o conteúdo.');
+        return;
+      }
+
+      const codeMatch = comment.match(/```(?:\w*\n)?([\\s\\S]*?)```/);
+      const content = codeMatch ? codeMatch[1] : null;
+      if (content === null) {
+        await replyToIssue('Nenhum bloco de código encontrado. Coloque o conteúdo do arquivo dentro de ``` ```.');
+        return;
+      }
+
+      const branch = `lovable/${Date.now()}`;
+      execSync('git config user.name "lovable-bot"');
+      execSync('git config user.email "lovable-bot@example.com"');
+      execSync(`git checkout -b ${branch}`);
+
+      const fullPath = path.join(process.cwd(), targetPath);
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, content, 'utf8');
+
+      execSync(`git add ${targetPath}`);
+      execSync(`git commit -m "lovable: create ${targetPath}"`);
+
+      execSync(`git push https://${token}@github.com/${repo}.git HEAD:refs/heads/${branch}`, { stdio: 'inherit' });
+
+      const [owner, repoName] = repo.split('/');
+      const repoResp = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
+        headers: { Authorization: `token ${token}`, 'User-Agent': 'lovable-bot' }
+      });
+      const repoJson = await repoResp.json();
+      const base = repoJson.default_branch || 'main';
+
+      const prResp = await fetch(`https://api.github.com/repos/${owner}/${repoName}/pulls`, {
+        method: 'POST',
+        headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'lovable-bot' },
+        body: JSON.stringify({
+          title: `lovable: create ${targetPath}`,
+          head: branch,
+          base,
+          body: `Arquivo criado via comando /lovable create-file ${targetPath}`
+        })
+      });
+      const prJson = await prResp.json();
+
+      await replyToIssue(`PR criado: ${prJson.html_url}`);
+      console.log('PR:', prJson.html_url);
+      return;
+    }
+
+    await replyToIssue(`Comando \`${cmd}\` não suportado. Atualmente suportado: \`create-file\`.`);
+  } catch (err) {
+    console.error(err);
+    await replyToIssue(`Erro ao executar o comando: ${err.message}`);
+    process.exit(1);
+  }
+})();
+JS
+
+          # supabase migrations workflow (runs on push to default branch)
+          cat > .github/workflows/supabase-migrations.yml <<'YAML'
+name: Supabase Migrations
+
+on:
+  push:
+    branches:
+      - '${DEFAULT_BRANCH}' # replaced at runtime below by push step
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run-migrations:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install supabase CLI
+        run: npm i -g supabase
+      - name: Run migrations (if any)
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        run: |
+          if [ -d "./supabase/migrations" ]; then
+            supabase login --service-role "$SUPABASE_SERVICE_ROLE_KEY"
+            supabase db push --project-ref "$SUPABASE_URL" || true
+          else
+            echo "No migrations folder found; skipping."
+          fi
+YAML
+
+          # README_LOVABLE
+          cat > README_LOVABLE.md <<'MD'
+Lovable bot — Setup rápido
+
+Usage:
+- Add files via issue comments:
+  /lovable create-file path/to/file.ext
