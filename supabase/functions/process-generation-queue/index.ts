@@ -89,11 +89,9 @@ function buildAestheticPrompt(userSceneDescription: string, preset: CinemaPreset
   const parts: string[] = [`Cinematic film still captured from a live-action movie.`];
   
   if (isStoryboard6) {
-    parts.push(`CRITICAL LAYOUT RULE: You MUST generate a STORYBOARD SHEET with EXACTLY 6 DISTINCT PANELS arranged in a STRICT 2-row by 3-column grid (2x3).`);
-    parts.push(`PROHIBITED: Do NOT generate 4, 8, 9, or any other number of panels. ONLY 6 PANELS ARE ALLOWED.`);
-    parts.push(`The 6 panels MUST COMPLETELY FILL the entire frame from edge to edge. No margins, no padding, and no external borders.`);
-    parts.push(`Each panel should be a variation of the same scene but with slight changes in composition or timing.`);
-    parts.push(`Ensure the layout is seamless: the panels should touch each other with only a thin hairline separator if needed, but the composite image must occupy the full selected aspect ratio without any letterboxing or empty space.`);
+    parts.push(`CRITICAL: You MUST generate EXACTLY 6 PANELS in a 2-row by 3-column grid (2x3).`);
+    parts.push(`PROHIBITED: DO NOT generate 9 panels. DO NOT use a 3x3 layout. ONLY 6 PANELS ALLOWED.`);
+    parts.push(`The 6 panels must touch the edges of the frame. No white or black margins.`);
   } else if (isUltrawide) {
     parts.push(`Compose the scene to fully occupy a wide cinematic frame.`);
   }
@@ -139,11 +137,7 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string, qualit
 
   const requestBody = {
     contents: [{ parts: contentParts }],
-    generationConfig: {
-      responseModalities: forceImageOnly ? ["IMAGE"] : ["TEXT", "IMAGE"],
-      imageConfig: { aspectRatio, imageSize: quality },
-      temperature: 0.7,
-    },
+    // No generationConfig or imageConfig for Gemini 3 Pro legacy support
   };
 
   const response = await fetch(endpoint, {
@@ -153,9 +147,11 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string, qualit
   });
 
   if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(`[GEMINI ERROR] Status: ${response.status} Body: ${errorBody}`);
     if (response.status === 429) throw new Error("RATE_LIMIT");
     if (response.status === 403) throw new Error("API_KEY_INVALID");
-    throw new Error(`Gemini API failed: ${response.status}`);
+    throw new Error(`Gemini API failed: ${response.status} - ${errorBody.substring(0, 100)}`);
   }
 
   const data = await response.json();
@@ -235,25 +231,17 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     let modelLabel = `${MODEL_CONFIG.label} • ${preset.label}`;
     let finalPrompt = item.prompt;
 
-    // Lógica especial para Split/Ampliação
+    // Lógica especial para Split/Ampliação (Prompt Vencedor)
     if (isSplitUpscale) {
       const panelInfo = item.reference_prompt_injection || "panel_number:1";
       const panelNum = panelInfo.split(':')[1] || "1";
-      const PANEL_POSITIONS: Record<string, string> = {
-        "1": "top-left", "2": "top-center", "3": "top-right",
-        "4": "bottom-left", "5": "bottom-center", "6": "bottom-right",
+      const ordinals: Record<string, string> = {
+        "1": "primeira", "2": "segunda", "3": "terceira",
+        "4": "quarta", "5": "quinta", "6": "sexta",
       };
-      const position = PANEL_POSITIONS[panelNum] || `painel ${panelNum}`;
+      const ordinal = ordinals[panelNum] || `${panelNum}ª`;
       
-      finalPrompt = `Esta imagem contém um grid de 6 painéis cinematográficos.
-      SUA TAREFA: Ampliar e expandir exclusivamente o PAINEL ${panelNum} (localizado em ${position}).
-      
-      REGRAS OBRIGATÓRIAS:
-      1. Gere apenas UMA imagem única ocupando todo o quadro (proporção 16:9).
-      2. Mantenha exatamente o mesmo personagem, iluminação e cores do PAINEL ${panelNum}.
-      3. Não inclua bordas, linhas de grid ou outros painéis.
-      4. Expanda a cena original com realismo cinematográfico extremo e detalhes ultra-nítidos.
-      5. O resultado deve ser a cena do painel ${panelNum} revelada em tela cheia.`;
+      finalPrompt = `Quero a ${ordinal} imagem desse grid versão final, ampliada, preenchendo todo o espaço da tela.`;
       
       modelLabel = `ABRAhub Nano Banana • Painel ${panelNum} Ampliado`;
     }
@@ -269,7 +257,7 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
         status: 'generating',
         credits_cost: 0,
         aspect_ratio: effectiveAspectRatio,
-        is_story6: false,
+        is_story6: isStoryboard6, // CRITICAL: This enables the "Partir Grid" button
       })
       .select('id').single();
     

@@ -151,17 +151,22 @@ export function GalleryGrid({
     
     // 1. Create Optimistic Cards IMMEDIATELY
     const tempMapping: Record<number, string> = {};
+    const ordinals: Record<number, string> = {
+      1: "primeira", 2: "segunda", 3: "terceira",
+      4: "quarta", 5: "quinta", 6: "sexta",
+    };
     
     sortedPanels.forEach(panelNum => {
       const tempId = `temp-split-${Date.now()}-${panelNum}`;
       tempMapping[panelNum] = tempId;
+      const ordinal = ordinals[panelNum] || `${panelNum}ª`;
       
       const instantItem: GalleryItem = {
         id: tempId,
         type: 'image',
         url: undefined,
-        prompt: `Upscale cinematográfico do Painel ${panelNum}`,
-        model: 'gemini-2.0-flash-exp',
+        prompt: `Quero a ${ordinal} imagem desse grid versão final, ampliada, preenchendo todo o espaço da tela.`,
+        model: 'gemini-3-pro-image',
         modelLabel: `Painel ${panelNum} • Processando...`,
         status: 'pending',
         createdAt,
@@ -176,43 +181,62 @@ export function GalleryGrid({
       optimisticQueueIdsRef.current.add(tempId);
     });
 
-    // 2. Call Broker Function
-    try {
-      const { data, error } = await supabase.functions.invoke('split-story6-grid', {
+    // 2. Call Standard Broker for EACH panel
+    const promises = sortedPanels.map(panelNum => {
+      const ordinal = ordinals[panelNum] || `${panelNum}ª`;
+      return supabase.functions.invoke('queue-image-generation', {
         body: {
-          imageUrl: sourceItem.masterUrl || sourceItem.url,
-          panels: sortedPanels,
+          prompt: `Quero a ${ordinal} imagem desse grid versão final, ampliada, preenchendo todo o espaço da tela.`,
+          referenceImages: [sourceItem.masterUrl || sourceItem.url],
+          referenceType: 'split_upscale',
+          referencePromptInjection: `panel_number:${panelNum}`,
+          aspectRatio: "16:9",
+          quality: "2K",
+          useOwnKey: true
         },
       });
-      
-      if (error || !data?.success) {
-        throw new Error(error?.message || data?.error || 'Erro ao enviar para fila');
-      }
+    });
 
-      // 3. ATOMIC SWAP: Replace temp IDs with real queue IDs to enable Realtime
-      if (data.queueItems) {
-        data.queueItems.forEach((item: { panel: number, queueId: string }) => {
-          const tempId = tempMapping[item.panel];
-          if (tempId && item.queueId) {
-            setGalleryMap(prev => {
-              const newMap = new Map(prev);
-              const tempItem = newMap.get(tempId);
-              if (tempItem) {
-                newMap.delete(tempId);
-                optimisticQueueIdsRef.current.delete(tempId);
-                
-                newMap.set(item.queueId, {
-                  ...tempItem,
-                  id: item.queueId,
-                  status: 'generating',
-                });
-                optimisticQueueIdsRef.current.add(item.queueId);
-              }
-              return newMap;
-            });
-          }
-        });
-      }
+    try {
+      const results = await Promise.all(promises);
+      
+      results.forEach((res, index) => {
+        const panelNum = sortedPanels[index];
+        const tempId = tempMapping[panelNum];
+        const { data, error } = res;
+
+        if (error || !data?.success) {
+          console.error(`[Split Error] Panel ${panelNum}:`, error || data?.error);
+          // Cleanup this specific temp card
+          setGalleryMap(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(tempId);
+            return newMap;
+          });
+          return;
+        }
+
+        // 3. ATOMIC SWAP: Replace temp ID with real queue ID
+        const queueId = data.queueId;
+        if (tempId && queueId) {
+          setGalleryMap(prev => {
+            const newMap = new Map(prev);
+            const tempItem = newMap.get(tempId);
+            if (tempItem) {
+              newMap.delete(tempId);
+              optimisticQueueIdsRef.current.delete(tempId);
+              
+              newMap.set(queueId, {
+                ...tempItem,
+                id: queueId,
+                status: 'generating',
+              });
+              optimisticQueueIdsRef.current.add(queueId);
+            }
+            return newMap;
+          });
+        }
+      });
       
       toast.success(`${sortedPanels.length} cena(s) adicionada(s) à fila!`);
       onRefresh?.();

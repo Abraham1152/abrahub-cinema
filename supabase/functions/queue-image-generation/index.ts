@@ -35,19 +35,22 @@ serve(async (req) => {
       referenceImages = [],
       useOwnKey = true,
       sequenceMode = false,
-      storyboard6Mode = false
+      storyboard6Mode = false,
+      referenceType: explicitReferenceType = null
     } = body;
 
     if (!prompt) throw new Error("Prompt é obrigatório");
 
     // Determinar o reference_type
-    let referenceType = null;
-    if (storyboard6Mode) {
-      referenceType = 'storyboard6';
-    } else if (sequenceMode) {
-      referenceType = 'sequence';
-    } else if (referenceImages && referenceImages.length > 0) {
-      referenceType = 'standard';
+    let referenceType = explicitReferenceType;
+    if (!referenceType) {
+      if (storyboard6Mode) {
+        referenceType = 'storyboard6';
+      } else if (sequenceMode) {
+        referenceType = 'sequence';
+      } else if (referenceImages && referenceImages.length > 0) {
+        referenceType = 'standard';
+      }
     }
 
     // 1. Adicionar à fila (generation_queue)
