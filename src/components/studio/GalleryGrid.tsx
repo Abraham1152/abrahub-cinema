@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3 } from 'lucide-react';
+import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -124,6 +124,7 @@ export function GalleryGrid({
   optimisticQueueIdsRef
 }: GalleryGridProps) {
   const [viewerItem, setViewerItem] = useState<GalleryItem | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number>(-1);
   const [downloading, setDownloading] = useState(false);
   const [brokenIds, setBrokenIds] = useState<Set<string>>(new Set());
   const [splitModalItem, setSplitModalItem] = useState<GalleryItem | null>(null);
@@ -138,7 +139,35 @@ export function GalleryGrid({
       else console.log('[GalleryGrid] Auto-deleted orphaned image:', item.id);
     });
   }, []);
-  
+
+  // Navigable items = ready images that are not broken
+  const navigableItems = items.filter(
+    item => item.status === 'ready' && item.url && !brokenIds.has(item.id)
+  );
+
+  const openViewer = useCallback((item: GalleryItem) => {
+    const idx = navigableItems.findIndex(i => i.id === item.id);
+    setViewerItem(item);
+    setViewerIndex(idx);
+  }, [navigableItems]);
+
+  const navigateTo = useCallback((idx: number) => {
+    if (idx < 0 || idx >= navigableItems.length) return;
+    setViewerItem(navigableItems[idx]);
+    setViewerIndex(idx);
+  }, [navigableItems]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!viewerItem) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') navigateTo(viewerIndex - 1);
+      else if (e.key === 'ArrowRight') navigateTo(viewerIndex + 1);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [viewerItem, viewerIndex, navigateTo]);
+
   // Handle split Story6 grid
   const handleConfirmSplit = useCallback(async (selectedPanels: number[]) => {
     if (!splitModalItem || !setGalleryMap || !optimisticQueueIdsRef) return;
@@ -291,7 +320,7 @@ export function GalleryGrid({
                 key={item.id}
                 className="group relative overflow-hidden cursor-pointer"
                 style={{ borderRadius: '6px' }}
-                onClick={() => item.status === 'ready' && item.url && setViewerItem(item)}
+                onClick={() => item.status === 'ready' && item.url && openViewer(item)}
               >
                 {/* Image container - no padding, no border, no shadow */}
                 <div className="aspect-[16/10] relative bg-neutral-900">
@@ -533,11 +562,33 @@ export function GalleryGrid({
           {viewerItem && (
             <div className="flex flex-col">
               {/* Image - Use MASTER quality for lightbox */}
-              <img 
-                src={viewerItem.masterUrl || viewerItem.url} 
-                alt={viewerItem.prompt}
-                className="w-full max-h-[70vh] object-contain bg-neutral-950"
-              />
+              <div className="relative">
+                <img
+                  src={viewerItem.masterUrl || viewerItem.url}
+                  alt={viewerItem.prompt}
+                  className="w-full max-h-[70vh] object-contain bg-neutral-950"
+                />
+                {/* Prev arrow */}
+                {viewerIndex > 0 && (
+                  <button
+                    onClick={() => navigateTo(viewerIndex - 1)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/85 text-white transition-colors"
+                    aria-label="Imagem anterior"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                )}
+                {/* Next arrow */}
+                {viewerIndex < navigableItems.length - 1 && (
+                  <button
+                    onClick={() => navigateTo(viewerIndex + 1)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/85 text-white transition-colors"
+                    aria-label="Próxima imagem"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                )}
+              </div>
               
               {/* Metadata - directly below image, no gap */}
               <div className="p-4 border-t border-neutral-800 space-y-3 bg-neutral-950">
