@@ -116,6 +116,15 @@ export function ApiKeyOnboardingModal({ open, onOpenChange, onKeyValidated }: Ap
                 <span>API key validada e salva com sucesso!</span>
               </div>
             )}
+
+            <a
+              href="https://youtu.be/0vuCSv0pJxM"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-xs text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+            >
+              Tutorial passo-a-passo →
+            </a>
           </div>
 
           <Button
