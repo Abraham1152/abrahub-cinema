@@ -57,22 +57,26 @@ export default function Auth() {
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  // When session becomes available, check if user needs password setup
+  // Direct auth listener — handles both SIGNED_IN and INITIAL_SESSION to avoid
+  // timing issues where SIGNED_IN fires before the useAuth state propagates
   useEffect(() => {
-    if (session && !loading) {
-      const pendingSetup = localStorage.getItem('abrahub_setup_pending');
-      const needsPasswordSetup = session.user?.user_metadata?.needs_password_setup;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && currentSession) {
+        const pendingSetup = localStorage.getItem('abrahub_setup_pending');
+        const needsPasswordSetup = currentSession.user?.user_metadata?.needs_password_setup;
 
-      if (pendingSetup === 'true' || needsPasswordSetup) {
-        localStorage.removeItem('abrahub_setup_pending');
-        setSetupEmail(session.user.email || '');
-        setShowFirstAccessModal(true);
-        setSetupStep('password');
-      } else {
-        navigate('/');
-      }
-    }
-  }, [session, loading, navigate]);
+        if (pendingSetup === 'true' || needsPasswordSetup) {
+          localStorage.removeItem('abrahub_setup_pending');
+          setSetupEmail(currentSession.user.email || '');
+          setShowFirstAccessModal(true);
+          setSetupStep('password');
+        } else {
+          // Already logged in with no setup pending — redirect to home
+          navigate('/');
+        }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   const handleCloseModal = () => {
     setShowFirstAccessModal(false);

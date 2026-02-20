@@ -26,7 +26,9 @@ function SetupGuard() {
     const isMagicLink = window.location.hash.includes('type=magiclink');
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      // Handle both SIGNED_IN and INITIAL_SESSION — SIGNED_IN can fire before
+      // the subscription is set up, in which case new subscriptions only get INITIAL_SESSION
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         const pendingSetup = localStorage.getItem('abrahub_setup_pending');
         const needsPasswordSetup = session.user?.user_metadata?.needs_password_setup;
 
