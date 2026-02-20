@@ -21,11 +21,18 @@ function SetupGuard() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Capture hash BEFORE any navigation clears it
+    // Supabase appends #access_token=...&type=magiclink after OTP verification
+    const isMagicLink = window.location.hash.includes('type=magiclink');
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         const pendingSetup = localStorage.getItem('abrahub_setup_pending');
         const needsPasswordSetup = session.user?.user_metadata?.needs_password_setup;
-        if (pendingSetup === 'true' || needsPasswordSetup) {
+
+        if (pendingSetup === 'true' || needsPasswordSetup || isMagicLink) {
+          // Ensure flag is set so Auth.tsx can detect it after navigation
+          localStorage.setItem('abrahub_setup_pending', 'true');
           navigate('/auth');
         }
       }
