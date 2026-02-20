@@ -141,7 +141,7 @@ Retorne JSON estruturado no formato:
 
 Não escreva texto fora do JSON.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKeyData.gemini_api_key}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKeyData.gemini_api_key}`;
 
     const geminiResponse = await fetch(geminiUrl, {
       method: "POST",
