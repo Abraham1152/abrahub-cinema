@@ -178,12 +178,17 @@ Não escreva texto fora do JSON.`;
     const geminiData = await geminiResponse.json();
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "{}";
 
+    // Strip markdown code fences if Gemini wrapped the JSON (common even with responseMimeType)
+    let cleanText = rawText;
+    const fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/s);
+    if (fenceMatch) cleanText = fenceMatch[1].trim();
+
     let structure: any;
     try {
-      structure = JSON.parse(rawText);
+      structure = JSON.parse(cleanText);
     } catch {
-      console.error("[STRUCTURE] Failed to parse:", rawText);
-      return new Response(JSON.stringify({ error: "Erro ao processar resposta da IA" }), {
+      console.error("[STRUCTURE] Failed to parse. Raw:", rawText.substring(0, 500));
+      return new Response(JSON.stringify({ error: "Erro ao processar resposta da IA. Tente novamente." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
