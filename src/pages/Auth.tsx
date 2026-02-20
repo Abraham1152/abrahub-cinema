@@ -111,12 +111,14 @@ export default function Auth() {
       localStorage.setItem('abrahub_setup_pending', 'true');
 
       // Email is authorized — send magic link (creates account if needed)
-      // emailRedirectTo must be just the origin (no path/hash) to work with HashRouter
+      // Use origin + pathname to include GitHub Pages subpath (/abrahub-cinema/)
+      // Supabase appends #access_token=... to this URL after verification
+      const redirectBase = window.location.origin + window.location.pathname;
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: setupEmail,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: redirectBase,
         },
       });
 
