@@ -415,26 +415,53 @@ export function useStoryboard() {
       const refs = sceneReferences[sceneId] || [];
       const referenceImages: string[] = [];
 
-      // Include inherited reference images as STYLE anchors only when inherit_style is ON
-      const inheritedImgs = scene.inherit_style
-        ? (sceneImages[sceneId] || []).filter(img => img.role === 'inherited')
-        : [];
+      // --- DYNAMIC PARENT IMAGE LOOKUP for style/character/environment inheritance ---
       const styleReferenceImages: string[] = [];
-      for (const inhImg of inheritedImgs) {
-        const url = inhImg.image_url || inhImg.master_url;
-        if (url) {
-          try {
-            const resp = await fetch(url);
-            if (resp.ok) {
-              const blob = await resp.blob();
-              const base64 = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(blob);
-              });
-              styleReferenceImages.push(base64);
-            }
-          } catch { /* skip */ }
+      let referencePromptInjection: string | null = null;
+
+      if (scene.inherit_style && scene.parent_scene_id) {
+        const inheritChar = (scene.style_data as any)?.inherit_character !== false;
+        const inheritEnv = (scene.style_data as any)?.inherit_environment !== false;
+
+        // Always use parent's CURRENT primary image (dynamic, never stale)
+        const parentImgs = sceneImages[scene.parent_scene_id] || [];
+        const parentGenerated = parentImgs.filter(i => i.role !== 'inherited');
+        const parentPrimary = parentGenerated.find(i => i.is_primary) || parentGenerated[parentGenerated.length - 1];
+
+        // Fallback: static role='inherited' image in child scene
+        const fallbackAnchor = (sceneImages[sceneId] || []).find(img => img.role === 'inherited');
+        const anchorImg = parentPrimary || fallbackAnchor;
+
+        if (anchorImg) {
+          const url = anchorImg.master_url || anchorImg.image_url;
+          if (url) {
+            try {
+              const resp = await fetch(url);
+              if (resp.ok) {
+                const blob = await resp.blob();
+                const base64 = await new Promise<string>((resolve) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.readAsDataURL(blob);
+                });
+                styleReferenceImages.push(base64);
+              }
+            } catch { /* skip */ }
+          }
+        }
+
+        // Build explicit Gemini instruction based on what user wants to preserve
+        if (styleReferenceImages.length > 0) {
+          if (inheritChar && inheritEnv) {
+            referencePromptInjection = 'The reference image shows the EXACT scene that must continue. Preserve the character (face, body, clothing, appearance) AND the environment/background/setting exactly. Generate the next moment in this visual sequence — same character, same location.';
+          } else if (inheritChar) {
+            referencePromptInjection = 'The reference image shows the EXACT character that must appear in the new scene. Preserve their face, body type, skin tone, clothing, and physical appearance with precision. The character should be immediately recognizable as the same person. The environment/background can be different.';
+          } else if (inheritEnv) {
+            referencePromptInjection = 'The reference image shows the EXACT environment/setting/background that must appear in the new scene. Preserve the location, lighting conditions, spatial composition, and atmosphere precisely. The setting should be recognizably identical. Characters can differ.';
+          } else {
+            // Only style (always on)
+            referencePromptInjection = 'The reference image provides the visual style reference. Match the cinematic look, color grading, lighting mood, lens characteristics, and overall aesthetic of this reference.';
+          }
         }
       }
 
@@ -457,13 +484,9 @@ export function useStoryboard() {
         }
       }
 
-      // Combine: style references first, then content references
+      // Style references first (parent image), then content references
       const allReferenceImages = [...styleReferenceImages, ...referenceImages];
-
-      // Use Sequence Mode flags so the edge function applies its tested continuity prompts
       const hasStyleAnchors = styleReferenceImages.length > 0;
-      const inheritCharacter = hasStyleAnchors && (scene.style_data as any)?.inherit_character !== false;
-      const inheritEnvironment = hasStyleAnchors && (scene.style_data as any)?.inherit_environment !== false;
 
       // Call the same queue-image-generation used by Studio
       const { data, error } = await supabase.functions.invoke('queue-image-generation', {
@@ -478,8 +501,7 @@ export function useStoryboard() {
           filmLook,
           referenceImages: allReferenceImages,
           sequenceMode: hasStyleAnchors,
-          sequenceKeepCharacter: inheritCharacter,
-          sequenceKeepScenery: inheritEnvironment,
+          referencePromptInjection,
           useOwnKey: hasApiKey === true,
         },
       });

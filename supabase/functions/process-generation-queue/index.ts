@@ -290,9 +290,12 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     if (insertError) throw insertError;
     
     // Generate image
+    // Use stored reference_prompt_injection (built by frontend from inherit_character/inherit_environment)
+    // For split_upscale, always null (has its own hardcoded prompt logic)
+    const promptInjection = isSplitUpscale ? null : (item.reference_prompt_injection || null);
     let imageResult: GeminiImageResult;
     try {
-      imageResult = await generateWithGeminiAPI(finalPrompt, effectiveAspectRatio, item.quality, effectiveApiKey, item.preset_id, item.focal_length, item.aperture, referenceImages, item.reference_type, null, item.camera_angle || 'eye-level', item.film_look, isSplitUpscale);
+      imageResult = await generateWithGeminiAPI(finalPrompt, effectiveAspectRatio, item.quality, effectiveApiKey, item.preset_id, item.focal_length, item.aperture, referenceImages, item.reference_type, promptInjection, item.camera_angle || 'eye-level', item.film_look, isSplitUpscale);
     } catch (firstError: any) {
       logStep("Generation failed", { error: firstError.message });
       throw firstError;
