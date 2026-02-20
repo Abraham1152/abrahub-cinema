@@ -572,7 +572,7 @@ export default function Index() {
         type: 'image',
         url: undefined,
         prompt: currentPrompt,
-        model: 'gemini-2.0-flash-exp-image-generation',
+        model: 'gemini-2.0-flash-exp',
         modelLabel: currentPreset || 'ABRAhub Realism',
         status: 'pending', // Shows "Processando..."
         createdAt,

@@ -235,7 +235,7 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     let modelLabel = `${MODEL_CONFIG.label} • ${preset.label}`;
     let finalPrompt = item.prompt;
 
-    // Lógica especial para Split/Upscale
+    // Lógica especial para Split/Ampliação
     if (isSplitUpscale) {
       const panelInfo = item.reference_prompt_injection || "panel_number:1";
       const panelNum = panelInfo.split(':')[1] || "1";
@@ -243,18 +243,19 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
         "1": "top-left", "2": "top-center", "3": "top-right",
         "4": "bottom-left", "5": "bottom-center", "6": "bottom-right",
       };
-      const position = PANEL_POSITIONS[panelNum] || `panel ${panelNum}`;
+      const position = PANEL_POSITIONS[panelNum] || `painel ${panelNum}`;
       
-      finalPrompt = `The attached image is a 2x3 storyboard grid with 6 panels.
-      TASK: Focus ONLY on Panel ${panelNum} located at the ${position}.
-      INSTRUCTION: Re-generate and upscale this specific panel into a single, high-detail cinematic wide shot.
-      ABSOLUTE RULES:
-      1. Output ONLY ONE standalone image (16:9 aspect ratio).
-      2. Maintain EXACT character appearance, lighting, and composition from Panel ${panelNum}.
-      3. This is a generative upscale: enhance details while staying 100% faithful.
-      4. No borders, no grid. Just the full-frame scene.`;
+      finalPrompt = `Esta imagem contém um grid de 6 painéis cinematográficos.
+      SUA TAREFA: Ampliar e expandir exclusivamente o PAINEL ${panelNum} (localizado em ${position}).
       
-      modelLabel = `ABRAhub Split • Painel ${panelNum}`;
+      REGRAS OBRIGATÓRIAS:
+      1. Gere apenas UMA imagem única ocupando todo o quadro (proporção 16:9).
+      2. Mantenha exatamente o mesmo personagem, iluminação e cores do PAINEL ${panelNum}.
+      3. Não inclua bordas, linhas de grid ou outros painéis.
+      4. Expanda a cena original com realismo cinematográfico extremo e detalhes ultra-nítidos.
+      5. O resultado deve ser a cena do painel ${panelNum} revelada em tela cheia.`;
+      
+      modelLabel = `ABRAhub Nano Banana • Painel ${panelNum} Ampliado`;
     }
     
     // Insert into user_generated_images (status: generating)
@@ -309,9 +310,26 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     
   } catch (error) {
     const rawError = error instanceof Error ? error.message : String(error);
-    await supabaseAdmin.from('generation_queue').update({
-      status: 'failed', error_message: rawError, retry_count: (item.retry_count || 0) + 1,
-    }).eq('id', item.id);
+    console.error(`[PROCESSOR] Execution failed for user ${item.user_id}:`, rawError);
+
+    // CRITICAL: Update both queue AND image record to fail state
+    // This prevents the "Generating..." card from being stuck forever
+    await Promise.all([
+      supabaseAdmin.from('generation_queue').update({
+        status: 'failed', 
+        error_message: rawError, 
+        retry_count: (item.retry_count || 0) + 1,
+      }).eq('id', item.id),
+      
+      // Update the actual image card so UI shows the error
+      supabaseAdmin.from('user_generated_images').update({
+        status: 'error',
+        error_message: rawError
+      }).filter('id', 'in', 
+        supabaseAdmin.from('generation_queue').select('result_image_id').eq('id', item.id)
+      ).or(`prompt.eq."${item.prompt}",user_id.eq."${item.user_id}"`) 
+      // Fallback: try to find the 'generating' record for this user/prompt if result_image_id wasn't set yet
+    ]).catch(err => console.error("Error during fail-state cleanup:", err));
   }
 }
 
