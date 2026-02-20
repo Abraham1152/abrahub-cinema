@@ -453,14 +453,33 @@ export function useStoryboard() {
         // Build explicit Gemini instruction based on what user wants to preserve
         if (styleReferenceImages.length > 0) {
           if (inheritChar && inheritEnv) {
-            referencePromptInjection = 'The reference image shows the EXACT scene that must continue. Preserve the character (face, body, clothing, appearance) AND the environment/background/setting exactly. Generate the next moment in this visual sequence — same character, same location.';
+            referencePromptInjection = [
+              'CRITICAL CHARACTER & ENVIRONMENT CONTINUITY — This is a sequential scene in a campaign.',
+              'CHARACTER: You MUST reproduce the IDENTICAL character from the reference image. Copy EXACTLY: face structure, facial features, skin tone, hair color and style, eye color, body type, AND every single clothing item (shirt, jacket, pants, shoes, accessories, colors, patterns, textures). The character must be pixel-perfect identical in appearance.',
+              'ENVIRONMENT: You MUST reproduce the IDENTICAL location from the reference image. Copy EXACTLY: the setting, architecture, background elements, lighting direction and color temperature, time of day, and spatial atmosphere.',
+              'DEVIATION IS NOT ALLOWED. Any change to clothing color, style, or accessories is a failure.',
+            ].join('\n');
           } else if (inheritChar) {
-            referencePromptInjection = 'The reference image shows the EXACT character that must appear in the new scene. Preserve their face, body type, skin tone, clothing, and physical appearance with precision. The character should be immediately recognizable as the same person. The environment/background can be different.';
+            referencePromptInjection = [
+              'CRITICAL CHARACTER CONTINUITY — This is a sequential scene in a campaign.',
+              'You MUST reproduce the IDENTICAL character from the reference image. Copy EXACTLY:',
+              '- Face: facial structure, bone structure, skin tone, complexion, every facial feature',
+              '- Hair: exact color, length, texture, and style',
+              '- Body: body type, height, build',
+              '- Clothing: EVERY item must be reproduced with IDENTICAL color, style, cut, fabric, and texture — shirt, pants, jacket, shoes, accessories, jewelry. DO NOT change any clothing detail.',
+              'The character must be immediately recognizable as the exact same person wearing the exact same outfit.',
+              'The background/environment can be different as specified by the new scene description.',
+              'ANY change to clothing is a critical failure.',
+            ].join('\n');
           } else if (inheritEnv) {
-            referencePromptInjection = 'The reference image shows the EXACT environment/setting/background that must appear in the new scene. Preserve the location, lighting conditions, spatial composition, and atmosphere precisely. The setting should be recognizably identical. Characters can differ.';
+            referencePromptInjection = [
+              'CRITICAL ENVIRONMENT CONTINUITY — This is a sequential scene in a campaign.',
+              'You MUST reproduce the IDENTICAL environment/setting from the reference image. Copy EXACTLY: the location, architecture, background elements, lighting direction, color temperature, time of day, weather, and spatial atmosphere.',
+              'The setting must be recognizably identical to the reference. Characters and their appearance can differ.',
+            ].join('\n');
           } else {
             // Only style (always on)
-            referencePromptInjection = 'The reference image provides the visual style reference. Match the cinematic look, color grading, lighting mood, lens characteristics, and overall aesthetic of this reference.';
+            referencePromptInjection = 'VISUAL STYLE REFERENCE: Match the cinematic look, color grading, lighting mood, contrast, lens characteristics, and overall aesthetic from the reference image. Maintain this exact visual language.';
           }
         }
       }
