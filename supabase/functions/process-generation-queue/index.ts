@@ -213,11 +213,12 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
   try {
     const isSequenceMode = item.reference_type === 'sequence' || item.sequence_mode;
     const isStoryboard6 = item.reference_type === 'storyboard6';
-    const effectiveAspectRatio = isStoryboard6 ? '16:9' : item.aspect_ratio;
+    const isSplitUpscale = item.reference_type === 'split_upscale';
+    const effectiveAspectRatio = (isStoryboard6 || isSplitUpscale) ? '16:9' : item.aspect_ratio;
     
-    // EXCLUSIVE BYOK MODE - Platform key is ignored
+    // EXCLUSIVE BYOK MODE - Fetch user's API key
     let effectiveApiKey = geminiApiKey;
-    const { data: keyData } = await supabaseAdmin.from('user_api_keys').select('gemini_api_key, is_valid').eq('user_id', item.user_id).single();
+    const { data: keyData } = await supabaseAdmin.from('user_api_keys').select('gemini_api_key, is_valid').eq('user_id', item.user_id).maybeSingle();
     if (keyData?.is_valid && keyData?.gemini_api_key) {
       effectiveApiKey = keyData.gemini_api_key;
     } else {
@@ -228,23 +229,46 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     let referenceImages: string[] = [];
     if (item.reference_images) {
       try { referenceImages = typeof item.reference_images === 'string' ? JSON.parse(item.reference_images) : item.reference_images; } 
-      catch (e) {}
+      catch (e) { referenceImages = item.reference_images; }
     }
     
     let modelLabel = `${MODEL_CONFIG.label} • ${preset.label}`;
+    let finalPrompt = item.prompt;
+
+    // Lógica especial para Split/Upscale
+    if (isSplitUpscale) {
+      const panelInfo = item.reference_prompt_injection || "panel_number:1";
+      const panelNum = panelInfo.split(':')[1] || "1";
+      const PANEL_POSITIONS: Record<string, string> = {
+        "1": "top-left", "2": "top-center", "3": "top-right",
+        "4": "bottom-left", "5": "bottom-center", "6": "bottom-right",
+      };
+      const position = PANEL_POSITIONS[panelNum] || `panel ${panelNum}`;
+      
+      finalPrompt = `The attached image is a 2x3 storyboard grid with 6 panels.
+      TASK: Focus ONLY on Panel ${panelNum} located at the ${position}.
+      INSTRUCTION: Re-generate and upscale this specific panel into a single, high-detail cinematic wide shot.
+      ABSOLUTE RULES:
+      1. Output ONLY ONE standalone image (16:9 aspect ratio).
+      2. Maintain EXACT character appearance, lighting, and composition from Panel ${panelNum}.
+      3. This is a generative upscale: enhance details while staying 100% faithful.
+      4. No borders, no grid. Just the full-frame scene.`;
+      
+      modelLabel = `ABRAhub Split • Painel ${panelNum}`;
+    }
     
     // Insert into user_generated_images (status: generating)
     const { data: imageRecord, error: insertError } = await supabaseAdmin
       .from('user_generated_images')
       .insert({
         user_id: item.user_id,
-        prompt: item.prompt,
+        prompt: finalPrompt,
         model: 'gemini-3-pro-image',
         model_label: modelLabel,
         status: 'generating',
-        credits_cost: 0, // No credits cost in community mode
-        aspect_ratio: item.aspect_ratio,
-        is_story6: isStoryboard6,
+        credits_cost: 0,
+        aspect_ratio: effectiveAspectRatio,
+        is_story6: false,
       })
       .select('id').single();
     
@@ -253,10 +277,9 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     // Generate image
     let imageResult: GeminiImageResult;
     try {
-      imageResult = await generateWithGeminiAPI(item.prompt, effectiveAspectRatio, item.quality, effectiveApiKey, item.preset_id, item.focal_length, item.aperture, referenceImages, item.reference_type, item.reference_prompt_injection, item.camera_angle || 'eye-level', item.film_look);
+      imageResult = await generateWithGeminiAPI(finalPrompt, effectiveAspectRatio, item.quality, effectiveApiKey, item.preset_id, item.focal_length, item.aperture, referenceImages, item.reference_type, null, item.camera_angle || 'eye-level', item.film_look, isSplitUpscale);
     } catch (firstError: any) {
-      // Basic auto-retry simplified for brevity
-      logStep("Retry 1 failed, aborting", { error: firstError.message });
+      logStep("Generation failed", { error: firstError.message });
       throw firstError;
     }
     
@@ -275,6 +298,7 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
     // Update Image Record to READY
     await supabaseAdmin.from('user_generated_images').update({ 
       status: 'ready', url: signedUrl, master_url: signedUrl, preview_url: signedUrl,
+      prompt: finalPrompt, // Save the specialized upscale prompt
       master_width: dimensions.width, master_height: dimensions.height, master_bytes: rawBytes.length
     }).eq('id', imageRecord.id);
     

@@ -97,6 +97,8 @@ interface GalleryGridProps {
   showExpiration?: boolean;
   expirationDays?: number;
   isPro?: boolean;
+  setGalleryMap?: React.Dispatch<React.SetStateAction<Map<string, GalleryItem>>>;
+  optimisticQueueIdsRef?: React.MutableRefObject<Set<string>>;
 }
 
 // Truncate prompt to first ~40 chars
@@ -117,7 +119,9 @@ export function GalleryGrid({
   emptyIcon,
   showExpiration = true,
   expirationDays = 30,
-  isPro = false
+  isPro = false,
+  setGalleryMap,
+  optimisticQueueIdsRef
 }: GalleryGridProps) {
   const [viewerItem, setViewerItem] = useState<GalleryItem | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -137,53 +141,93 @@ export function GalleryGrid({
   
   // Handle split Story6 grid
   const handleConfirmSplit = useCallback(async (selectedPanels: number[]) => {
-    if (!splitModalItem) return;
+    if (!splitModalItem || !setGalleryMap || !optimisticQueueIdsRef) return;
     const sourceItem = splitModalItem;
     setSplitModalItem(null);
-    setViewerItem(null); // Close lightbox
-    setSplitting(true);
+    setViewerItem(null);
     
     const sortedPanels = [...selectedPanels].sort((a, b) => a - b);
-    const toastId = toast.loading(`Gerando painéis 0/${sortedPanels.length}...`);
-    let successCount = 0;
+    const createdAt = new Date().toISOString();
     
-    for (let i = 0; i < sortedPanels.length; i++) {
-      toast.loading(`Gerando painel ${sortedPanels[i]}... (${i + 1}/${sortedPanels.length})`, { id: toastId });
+    // 1. Create Optimistic Cards IMMEDIATELY
+    const tempMapping: Record<number, string> = {};
+    
+    sortedPanels.forEach(panelNum => {
+      const tempId = `temp-split-${Date.now()}-${panelNum}`;
+      tempMapping[panelNum] = tempId;
       
-      try {
-        const fullUrl = sourceItem.masterUrl || sourceItem.url || '';
-        
-        const { data, error } = await supabase.functions.invoke('split-story6-grid', {
-          body: {
-            imageUrl: fullUrl,
-            panels: [sortedPanels[i]],
-            quality: '2K',
-          },
-        });
-        
-        if (error) {
-          console.error('[Split Error]', error);
-          toast.error(`Erro no painel ${sortedPanels[i]}: ${error.message || 'Falha na comunicação'}`);
-        } else if (data?.success) {
-          successCount++;
-          onRefresh?.();
-        } else {
-          toast.error(`Falha no painel ${sortedPanels[i]}: ${data?.error || 'Erro desconhecido'}`);
-        }
-      } catch (err) {
-        console.error('[Split exception]', err);
-        toast.error(`Erro no painel ${sortedPanels[i]}: Problema interno`);
+      const instantItem: GalleryItem = {
+        id: tempId,
+        type: 'image',
+        url: undefined,
+        prompt: `Upscale cinematográfico do Painel ${panelNum}`,
+        model: 'gemini-2.0-flash-exp',
+        modelLabel: `Painel ${panelNum} • Processando...`,
+        status: 'pending',
+        createdAt,
+        creditsCost: 0,
+      };
+      
+      setGalleryMap(prev => {
+        const newMap = new Map(prev);
+        newMap.set(tempId, instantItem);
+        return newMap;
+      });
+      optimisticQueueIdsRef.current.add(tempId);
+    });
+
+    // 2. Call Broker Function
+    try {
+      const { data, error } = await supabase.functions.invoke('split-story6-grid', {
+        body: {
+          imageUrl: sourceItem.masterUrl || sourceItem.url,
+          panels: sortedPanels,
+        },
+      });
+      
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Erro ao enviar para fila');
       }
+
+      // 3. ATOMIC SWAP: Replace temp IDs with real queue IDs to enable Realtime
+      if (data.queueItems) {
+        data.queueItems.forEach((item: { panel: number, queueId: string }) => {
+          const tempId = tempMapping[item.panel];
+          if (tempId && item.queueId) {
+            setGalleryMap(prev => {
+              const newMap = new Map(prev);
+              const tempItem = newMap.get(tempId);
+              if (tempItem) {
+                newMap.delete(tempId);
+                optimisticQueueIdsRef.current.delete(tempId);
+                
+                newMap.set(item.queueId, {
+                  ...tempItem,
+                  id: item.queueId,
+                  status: 'generating',
+                });
+                optimisticQueueIdsRef.current.add(item.queueId);
+              }
+              return newMap;
+            });
+          }
+        });
+      }
+      
+      toast.success(`${sortedPanels.length} cena(s) adicionada(s) à fila!`);
+      onRefresh?.();
+
+    } catch (err) {
+      console.error('[Split exception]', err);
+      toast.error('Erro ao processar o split');
+      // Cleanup temp cards on failure
+      setGalleryMap(prev => {
+        const newMap = new Map(prev);
+        sortedPanels.forEach(p => newMap.delete(tempMapping[p]));
+        return newMap;
+      });
     }
-    
-    setSplitting(false);
-    if (successCount > 0) {
-      toast.success(`${successCount} painel(is) gerado(s) com sucesso`, { id: toastId });
-      onRefresh?.(); // Final refresh
-    } else {
-      toast.error('Nenhum painel foi gerado', { id: toastId });
-    }
-  }, [splitModalItem, onRefresh]);
+  }, [splitModalItem, setGalleryMap, optimisticQueueIdsRef, onRefresh]);
 
   // Helper to format bytes to MB
   const formatMB = (bytes?: number) => bytes ? (bytes / (1024 * 1024)).toFixed(2) : null;

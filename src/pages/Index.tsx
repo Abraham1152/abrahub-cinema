@@ -944,6 +944,8 @@ export default function Index() {
               showExpiration={true}
               expirationDays={30}
               isPro={credits.total >= 100}
+              setGalleryMap={setGalleryMap}
+              optimisticQueueIdsRef={optimisticQueueIdsRef}
             />
           )}
         </div>
