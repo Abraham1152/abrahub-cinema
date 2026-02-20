@@ -20,7 +20,7 @@ export function ImageViewerModal({ imageUrl, downloadUrl, open, onClose }: Image
   // Reset on open
   useEffect(() => {
     if (open) {
-      setScale(0.35);
+      setScale(1);
       setTranslate({ x: 0, y: 0 });
     }
   }, [open, imageUrl]);
