@@ -137,7 +137,14 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string, qualit
 
   const requestBody = {
     contents: [{ parts: contentParts }],
-    // No generationConfig or imageConfig for Gemini 3 Pro legacy support
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+      imageConfig: {
+        aspectRatio: aspectRatio,
+        imageSize: quality,
+      },
+      temperature: 0.7,
+    },
   };
 
   const response = await fetch(endpoint, {
