@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Sparkles, Image as ImageIcon, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '@/components/layout/Header';
 import { GalleryGrid, GalleryItem } from '@/components/studio/GalleryGrid';
 import { RealismFloatingBar, QualityOption, QUALITY_OPTIONS } from '@/components/studio/RealismFloatingBar';
 import { QueueStatusBar } from '@/components/studio/QueueStatusBar';
@@ -901,7 +900,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header user={user} />
 
       {!hasValidApiKey && !authLoading && !isCheckingApiKey && (
         <button

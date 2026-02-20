@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoryboard, StoryboardProject } from '@/hooks/useStoryboard';
 import { StoryboardCanvas } from '@/components/storyboard/StoryboardCanvas';
-import { Header } from '@/components/layout/Header';
 import { useCredits } from '@/hooks/useCredits';
 import { Button } from '@/components/ui/button';
 import { Plus, FolderOpen, Trash2, Loader2 } from 'lucide-react';
@@ -98,7 +97,6 @@ export default function Storyboard() {
   if (!currentProject) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <Header user={user} />
         <div className="flex-1 container max-w-2xl mx-auto px-4 py-12">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -159,7 +157,6 @@ export default function Storyboard() {
   // Canvas view
   return (
     <div className="h-screen flex flex-col bg-background">
-      <Header user={user} />
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-background">
         <Button variant="ghost" size="sm" onClick={() => selectProject(null as any)}>
           ← Projetos

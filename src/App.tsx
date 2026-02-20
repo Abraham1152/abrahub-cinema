@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Outlet, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Pricing from "./pages/Pricing";
@@ -13,8 +13,21 @@ import Storyboard from "./pages/Storyboard";
 import NotFound from "./pages/NotFound";
 import { CookieBanner } from "./components/cookies/CookieBanner";
 import { supabase } from "@/integrations/supabase/client";
+import { Header } from "@/components/layout/Header";
+import { useAuth } from "@/hooks/useAuth";
 
 const queryClient = new QueryClient();
+
+// Persistent header layout — shared across Studio, Storyboard, Admin
+function MainLayout() {
+  const { user } = useAuth();
+  return (
+    <>
+      <Header user={user} />
+      <Outlet />
+    </>
+  );
+}
 
 // Detects SIGNED_IN after magic link redirect and navigates to /auth to show setup modal
 function SetupGuard() {
@@ -53,12 +66,15 @@ const App = () => (
       <HashRouter>
         <SetupGuard />
         <Routes>
-          <Route path="/" element={<Index />} />
+          {/* Pages with persistent shared header */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<Index />} />
+            <Route path="/storyboard" element={<Storyboard />} />
+            <Route path="/admin" element={<Admin />} />
+          </Route>
+          {/* Pages without the shared header */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/privacy" element={<Privacy />} />
-           <Route path="/admin" element={<Admin />} />
-           <Route path="/storyboard" element={<Storyboard />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
         <CookieBanner />
