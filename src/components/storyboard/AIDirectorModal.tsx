@@ -183,7 +183,7 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
             </div>
           </div>
 
-          <Button onClick={handleGenerate} disabled={loading || !objective.trim()} className="w-full gap-2">
+          <Button onClick={() => handleGenerate()} disabled={loading || !objective.trim()} className="w-full gap-2">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clapperboard className="h-4 w-4" />}
             {loading ? 'Gerando estrutura...' : 'Gerar Estrutura'}
           </Button>
