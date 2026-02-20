@@ -62,9 +62,9 @@ serve(async (req) => {
       });
     }
 
-    const textPrompt = `Você é um diretor criativo especializado em campanhas cinematográficas.
+    const textPrompt = `Você é um diretor de fotografia e diretor criativo especializado em campanhas cinematográficas.
 
-Crie uma estrutura narrativa clara dividida em cenas para uma campanha contínua e coesa.
+Crie uma estrutura narrativa dividida em cenas para uma campanha contínua e coesa. Para cada cena, escolha os parâmetros cinematográficos ideais usando EXATAMENTE as chaves disponíveis abaixo.
 
 Projeto:
 Objetivo: ${objective}
@@ -73,13 +73,48 @@ Duração total: ${duration}
 Formato: ${format}
 Tom: ${tone}
 
+CÂMERA DISPONÍVEL (use o valor exato em preset_id):
+- "arri-natural" → ARRI Alexa Mini LF, narrativo orgânico, tons fílmicos
+- "red-commercial" → RED V-Raptor, precisão comercial, nítido e vibrante
+- "sony-venice-night" → Sony Venice, otimizado para low-light e sombras ricas
+- "anamorphic-film" → Anamorphic, widescreen cinemático com bokeh oval e lens flares
+- "documentary-street" → Documentário, realismo autêntico, grão natural
+
+FOCAL LENGTH disponível (use o valor exato em focal_length):
+- "14mm" → ultra-wide dramático
+- "24mm" → wide clássico
+- "35mm" → perspectiva natural, versátil
+- "50mm" → olho humano, compressão natural
+- "85mm" → retrato, shallow depth
+- "135mm" → telefoto, compressão forte, isolamento do sujeito
+
+ABERTURA disponível (use o valor exato em aperture):
+- "f1.4" → bokeh extremo, sonhador
+- "f2.0" → shallow com mais tolerância
+- "f2.8" → padrão cinema, separação equilibrada
+- "f4.0" → moderado, nítido nos sujeitos
+- "f5.6" → profundidade boa para múltiplos planos
+- "f8.0" → máxima profundidade de campo
+
+ÂNGULO DE CÂMERA disponível (use o valor exato em camera_angle):
+- "eye-level" → neutro, imersivo
+- "low-angle" → poder, dominância, heroísmo
+- "high-angle" → vulnerabilidade, diminuído
+- "dutch-angle" → tensão psicológica, desorientação
+- "birds-eye" → perspectiva de deus, aérea
+- "worms-eye" → escala monumental, baixíssimo
+- "over-shoulder" → relação entre personagens
+- "pov" → primeira pessoa, subjetivo
+- "close-up" → emoção, detalhe íntimo
+- "wide-shot" → ambiente, escala, contexto
+
 REGRAS:
 - Mínimo 3 cenas, máximo 8 cenas
 - A soma das durações deve ser aproximadamente ${duration}
-- Cada cena deve ter uma função narrativa clara dentro da campanha
+- Cada cena deve ter uma função narrativa clara
 - Os prompts sugeridos devem ser em inglês e cinematográficos
-- camera_suggestion deve ser em inglês (ex: "slow dolly in", "tracking shot")
-- video_prompt: descreva em inglês (50-80 palavras) EXATAMENTE como animar a imagem-chave daquela cena para gerar o clipe de vídeo. Inclua: movimento de câmera, movimento do sujeito/elementos, atmosfera, duração, tom emocional. Os video_prompts de todas as cenas juntos devem formar uma sequência narrativa contínua (cena 1 estabelece → 2 desenvolve → 3 clímax → 4 resolve → etc).
+- video_prompt: descreva em inglês (50-80 palavras) EXATAMENTE como animar a imagem-chave daquela cena. Inclua: movimento de câmera, movimento do sujeito/elementos, atmosfera, duração, tom emocional. Juntos devem formar sequência narrativa contínua.
+- Escolha os parâmetros de câmera que MELHOR SERVEM cada cena narrativamente — não use sempre os mesmos
 
 Retorne JSON estruturado no formato:
 
@@ -94,7 +129,10 @@ Retorne JSON estruturado no formato:
       "duration_seconds": 5,
       "visual_description": "descrição visual detalhada",
       "suggested_prompt_base": "cinematic English prompt for image generation",
-      "camera_suggestion": "camera movement suggestion",
+      "preset_id": "arri-natural",
+      "focal_length": "35mm",
+      "aperture": "f2.8",
+      "camera_angle": "eye-level",
       "emotion": "emoção principal",
       "video_prompt": "Slow dolly in from wide establishing shot pushing toward subject. Soft golden light rakes from left, subject breathes naturally. Background depth-of-field shift reveals environment. Duration 5 seconds. Tone: intimate and establishing, sets the campaign world."
     }

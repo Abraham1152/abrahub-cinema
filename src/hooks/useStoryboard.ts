@@ -749,6 +749,12 @@ export function useStoryboard() {
     }
   };
 
+  // Valid preset keys — used to validate AI choices before saving
+  const VALID_PRESET_IDS = ['arri-natural', 'red-commercial', 'sony-venice-night', 'anamorphic-film', 'documentary-street'];
+  const VALID_FOCAL_LENGTHS = ['14mm', '24mm', '35mm', '50mm', '85mm', '135mm'];
+  const VALID_APERTURES = ['f1.4', 'f2.0', 'f2.8', 'f4.0', 'f5.6', 'f8.0'];
+  const VALID_ANGLES = ['eye-level', 'low-angle', 'high-angle', 'dutch-angle', 'birds-eye', 'worms-eye', 'over-shoulder', 'pov', 'close-up', 'wide-shot'];
+
   // Create scenes from AI Director structure
   const createScenesFromStructure = async (structure: { title: string; concept: string; scenes: any[] }, format: string) => {
     if (!user || !currentProject) return;
@@ -756,10 +762,6 @@ export function useStoryboard() {
     const sceneWidth = 360;
     const startX = 100;
     const startY = 150;
-
-    // Get style_data from first existing root scene if any
-    const rootScene = scenes.find(s => !s.parent_scene_id);
-    const baseStyleData = rootScene?.style_data || {};
 
     const createdSceneIds: string[] = [];
     let firstSceneId: string | null = null;
@@ -771,6 +773,12 @@ export function useStoryboard() {
       // First scene is root; subsequent scenes are children that inherit style
       const isChild = i > 0 && firstSceneId;
 
+      // Use AI-chosen camera params, falling back to cinematic defaults
+      const presetId = VALID_PRESET_IDS.includes(s.preset_id) ? s.preset_id : 'arri-natural';
+      const focalLength = VALID_FOCAL_LENGTHS.includes(s.focal_length) ? s.focal_length : '35mm';
+      const aperture = VALID_APERTURES.includes(s.aperture) ? s.aperture : 'f2.8';
+      const cameraAngle = VALID_ANGLES.includes(s.camera_angle) ? s.camera_angle : 'eye-level';
+
       const { data, error } = await supabase
         .from('storyboard_scenes')
         .insert({
@@ -781,7 +789,10 @@ export function useStoryboard() {
           description: s.visual_description || '',
           aspect_ratio: format,
           style_data: {
-            ...baseStyleData,
+            presetId,
+            focalLength,
+            aperture,
+            cameraAngle,
             video_prompt: s.video_prompt || '',
             scene_emotion: s.emotion || '',
           },
