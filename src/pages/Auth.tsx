@@ -57,26 +57,23 @@ export default function Auth() {
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  // Direct auth listener — handles both SIGNED_IN and INITIAL_SESSION to avoid
-  // timing issues where SIGNED_IN fires before the useAuth state propagates
+  // When Auth mounts: check if setup is pending (magic link flow)
+  // SetupGuard already navigated here; useAuth provides the session via INITIAL_SESSION
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && currentSession) {
-        const pendingSetup = localStorage.getItem('abrahub_setup_pending');
-        const needsPasswordSetup = currentSession.user?.user_metadata?.needs_password_setup;
+    if (!session || loading) return;
 
-        if (pendingSetup === 'true' || needsPasswordSetup) {
-          localStorage.removeItem('abrahub_setup_pending');
-          setSetupEmail(currentSession.user.email || '');
-          setShowFirstAccessModal(true);
-          setSetupStep('password');
-        } else {
-          // Already logged in with no setup pending — redirect to home
-          navigate('/');
-        }
-    });
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    const pendingSetup = localStorage.getItem('abrahub_setup_pending');
+    const needsPasswordSetup = session.user?.user_metadata?.needs_password_setup;
+
+    if (pendingSetup === 'true' || needsPasswordSetup) {
+      localStorage.removeItem('abrahub_setup_pending');
+      setSetupEmail(session.user.email || '');
+      setShowFirstAccessModal(true);
+      setSetupStep('password');
+    } else {
+      navigate('/');
+    }
+  }, [session, loading, navigate]);
 
   const handleCloseModal = () => {
     setShowFirstAccessModal(false);
