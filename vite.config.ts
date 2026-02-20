@@ -5,8 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Relative base path for maximum compatibility with GitHub Pages and Vercel
-  base: "./",
+  // Relative base for GitHub Pages build, absolute for local dev server
+  base: mode === "production" ? "./" : "/",
   build: {
     outDir: "dist",
     assetsDir: "assets",

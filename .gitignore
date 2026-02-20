@@ -32,3 +32,26 @@ supabase/.temp
 authorize_me.js
 admin_setup.cjs
 clear_queues.cjs
+
+# Environment & Secrets (AIOS)
+.env.*.local
+*.key
+
+# Dependencies (AIOS)
+node_modules/
+
+# Build & Logs (AIOS)
+dist/
+build/
+*.log
+logs/
+
+# IDE & OS (AIOS)
+Thumbs.db
+.idea/
+*.swp
+
+# AIOS Local (AIOS)
+.aios-core/local/
+.claude/settings.local.json
+.aios/install-log.txt

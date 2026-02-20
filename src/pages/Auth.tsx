@@ -23,7 +23,6 @@ type SetupStep = 'email' | 'sent' | 'password' | 'success';
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { signIn, signUp, session, loading } = useAuth();
 
   // Tab state
@@ -58,42 +57,22 @@ export default function Auth() {
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
-  const isSettingPassword = searchParams.get('mode') === 'set-password';
-
-  // Check if user returned from Magic Link
+  // When session becomes available, check if user needs password setup
   useEffect(() => {
-    const checkMagicLinkReturn = async () => {
-      if (isSettingPassword) {
-        // Wait for session to be established after Magic Link redirect
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        
-        if (currentSession) {
-          const needsSetup = currentSession.user?.user_metadata?.needs_password_setup;
-          if (needsSetup) {
-            setSetupEmail(currentSession.user.email || '');
-            setShowFirstAccessModal(true);
-            setSetupStep('password');
-          } else {
-            // Already set up, redirect to home
-            navigate('/', { replace: true });
-          }
-        }
-      }
-    };
-    checkMagicLinkReturn();
-  }, [isSettingPassword, navigate]);
-
-  // Redirect if already logged in (and not setting password)
-  useEffect(() => {
-    if (session && !loading && !isSettingPassword) {
+    if (session && !loading) {
+      const pendingSetup = localStorage.getItem('abrahub_setup_pending');
       const needsPasswordSetup = session.user?.user_metadata?.needs_password_setup;
-      if (!needsPasswordSetup) {
+
+      if (pendingSetup === 'true' || needsPasswordSetup) {
+        localStorage.removeItem('abrahub_setup_pending');
+        setSetupEmail(session.user.email || '');
+        setShowFirstAccessModal(true);
+        setSetupStep('password');
+      } else {
         navigate('/');
       }
     }
-  }, [session, loading, navigate, isSettingPassword]);
+  }, [session, loading, navigate]);
 
   const handleCloseModal = () => {
     setShowFirstAccessModal(false);
@@ -111,39 +90,33 @@ export default function Auth() {
     setSetupError('');
 
     try {
-      // First verify if user is eligible (PRO created via webhook)
-      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-first-access', {
-        body: { email: setupEmail },
-      });
+      // Verify if email is in the authorized whitelist
+      const { data: authorized, error: dbError } = await supabase
+        .from('authorized_users')
+        .select('status')
+        .eq('email', setupEmail.toLowerCase())
+        .single();
 
-      if (verifyError) {
-        throw new Error('Erro ao verificar elegibilidade');
-      }
-
-      if (!verifyData.eligible) {
-        setSetupError(verifyData.message);
-        
-        // Redirect based on reason
-        if (verifyData.reason === 'user_not_found') {
-          toast.info('Cadastre-se para começar', {
-            description: 'Você será redirecionado para o cadastro.',
-          });
-          setTimeout(() => {
-            handleCloseModal();
-            setActiveTab('register');
-          }, 1500);
-        } else if (verifyData.reason === 'already_setup' || verifyData.reason === 'regular_user') {
-          toast.info(verifyData.message);
-        }
+      if (dbError || !authorized) {
+        setSetupError('Este email não está na lista de acesso da comunidade ABRAhub. Verifique se usou o email correto da sua assinatura.');
         return;
       }
 
-      // User is eligible - send Magic Link
+      if (authorized.status !== 'active') {
+        setSetupError('Sua assinatura está inativa. Para reativar o acesso, renove sua assinatura na comunidade ABRAhub.');
+        return;
+      }
+
+      // Mark pending setup before sending OTP (localStorage survives the redirect)
+      localStorage.setItem('abrahub_setup_pending', 'true');
+
+      // Email is authorized — send magic link (creates account if needed)
+      // emailRedirectTo must be just the origin (no path/hash) to work with HashRouter
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: setupEmail,
-        options: { 
-          shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth?mode=set-password`,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: window.location.origin,
         },
       });
 
@@ -429,10 +402,10 @@ export default function Auth() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-amber-400" />
-                  Primeiro acesso PRO
+                  Primeiro acesso
                 </DialogTitle>
                 <DialogDescription>
-                  Digite o email usado na compra do plano PRO
+                  Digite o email da sua assinatura na comunidade ABRAhub
                 </DialogDescription>
               </DialogHeader>
               
