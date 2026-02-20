@@ -415,8 +415,10 @@ export function useStoryboard() {
       const refs = sceneReferences[sceneId] || [];
       const referenceImages: string[] = [];
 
-      // Include inherited reference images as STYLE anchors (lighting, color, camera)
-      const inheritedImgs = (sceneImages[sceneId] || []).filter(img => img.role === 'inherited');
+      // Include inherited reference images as STYLE anchors only when inherit_style is ON
+      const inheritedImgs = scene.inherit_style
+        ? (sceneImages[sceneId] || []).filter(img => img.role === 'inherited')
+        : [];
       const styleReferenceImages: string[] = [];
       for (const inhImg of inheritedImgs) {
         const url = inhImg.image_url || inhImg.master_url;
@@ -704,6 +706,16 @@ export function useStoryboard() {
     }));
   };
 
+  // Remove style anchor image from a scene (without removing the connection)
+  const removeStyleAnchor = async (sceneId: string) => {
+    await supabase.from('storyboard_scene_images').delete()
+      .eq('scene_id', sceneId).eq('role', 'inherited');
+    setSceneImages(prev => ({
+      ...prev,
+      [sceneId]: (prev[sceneId] || []).filter(img => img.role !== 'inherited'),
+    }));
+  };
+
   // Save canvas state
   const saveCanvasState = async (state: { zoom: number; panX: number; panY: number }) => {
     if (!currentProject) return;
@@ -807,7 +819,7 @@ export function useStoryboard() {
     createScene, updateScene, deleteScene,
     addReference, removeReference, uploadFileAsReference,
     generateImage, setPrimaryImage, removeImageFromScene,
-    changeStyleAnchor,
+    changeStyleAnchor, removeStyleAnchor,
     addConnection, removeConnection,
     saveCanvasState,
     createScenesFromStructure,

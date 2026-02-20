@@ -41,6 +41,7 @@ interface SceneBlockProps {
   onRemoveImage: (imageId: string, sceneId: string) => void;
   onUploadFileAsReference: (sceneId: string, file: File) => void;
   onChangeStyleAnchor: (sceneId: string, imageId: string, previewUrl?: string) => void;
+  onRemoveStyleAnchor: (sceneId: string) => void;
   onCreateFromScene: (sceneId: string) => void;
   // Connection ports
   onStartConnectionDrag: (sceneId: string, e: React.MouseEvent) => void;
@@ -95,7 +96,7 @@ export function SceneBlock({
   scene, images, references, index, isDraggable, zoom, computedPosition, isGenerating,
   onUpdate, onDelete, onAddReference, onRemoveReference,
   onGenerateImage, onSetPrimary, onRemoveImage, onUploadFileAsReference,
-  onChangeStyleAnchor,
+  onChangeStyleAnchor, onRemoveStyleAnchor,
   onCreateFromScene,
   onStartConnectionDrag, onDropConnection, isDraggingConnection, draggingFromId,
 }: SceneBlockProps) {
@@ -309,8 +310,8 @@ export function SceneBlock({
         />
       </div>
 
-      {/* Style Anchor */}
-      {hasParent && (
+      {/* Style Anchor — only visible when inheritance is ON */}
+      {hasParent && scene.inherit_style && (
         <div className="px-3 pb-1.5" data-no-drag>
           <div className="flex items-center justify-between mb-1">
             <TooltipProvider>
@@ -322,7 +323,7 @@ export function SceneBlock({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs max-w-[200px]">
-                  Estilo visual herdado (iluminação, cor, câmera). Clique em + para trocar.
+                  Estilo visual herdado (iluminação, cor, câmera). Clique em + para trocar ou × para remover.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -354,6 +355,14 @@ export function SceneBlock({
                       </div>
                     )}
                   </div>
+                  {/* X button to remove style anchor */}
+                  <button
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive flex items-center justify-center hover:bg-destructive/80 transition-colors z-10"
+                    onClick={(e) => { e.stopPropagation(); onRemoveStyleAnchor(scene.id); }}
+                    title="Remover âncora de estilo"
+                  >
+                    <X className="h-2.5 w-2.5 text-white" />
+                  </button>
                   <Badge variant="secondary" className="absolute -bottom-1 left-0 right-0 mx-auto w-fit text-[7px] px-1 py-0 h-3.5 bg-primary/10 text-primary border-primary/20">
                     Estilo
                   </Badge>
