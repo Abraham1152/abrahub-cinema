@@ -202,7 +202,23 @@ function parseImageDimensionsFromBytes(bytes: Uint8Array, mimeType: string): { w
 }
 
 // ============================================
-// PROCESS SINGLE QUEUE ITEM 
+// FETCH REMOTE IMAGE AND CONVERT TO BASE64
+// ============================================
+async function fetchImageAsBase64(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch reference image: ${response.status}`);
+  const buffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  const contentType = response.headers.get('content-type') || 'image/png';
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return `data:${contentType};base64,${btoa(binary)}`;
+}
+
+// ============================================
+// PROCESS SINGLE QUEUE ITEM
 // ============================================
 async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiApiKey: string): Promise<void> {
   const startTime = Date.now();
@@ -228,6 +244,16 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
       catch (e) { referenceImages = item.reference_images; }
     }
     
+    // Resolve URL references to base64 — Gemini requires inline base64, not public URLs
+    if (referenceImages.length > 0) {
+      referenceImages = await Promise.all(
+        referenceImages.map(async (ref: string) => {
+          if (ref.startsWith('http')) return await fetchImageAsBase64(ref);
+          return ref;
+        })
+      );
+    }
+
     let modelLabel = `${MODEL_CONFIG.label} • ${preset.label}`;
     let finalPrompt = item.prompt;
 

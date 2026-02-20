@@ -277,38 +277,39 @@ export default function Index() {
               return;
             }
             
-            // RULE 3: Before inserting image, EXPLICITLY remove corresponding queue item
-            // Find by mapping OR by iterating through optimistic set
-            let foundQueueId: string | null = null;
-            
-            for (const [queueId, imageId] of queueToImageMapRef.current.entries()) {
-              if (imageId === img.id) {
-                foundQueueId = queueId;
-                break;
-              }
-            }
-            
-            // Also check if we have a queue item with same prompt (fallback match)
-            if (!foundQueueId) {
-              for (const queueId of optimisticQueueIdsRef.current) {
-                foundQueueId = queueId; // Use any matching queue item
-                break;
-              }
-            }
-            
-            // Use setGalleryMap to atomically remove queue + add image
+            // RULE 3: Remove matching queue item and insert real image atomically
             setGalleryMap(prev => {
               const newMap = new Map(prev);
-              
-              // Remove the queue item first if found
-              if (foundQueueId) {
-                console.log('[Realtime] Removing queue item', foundQueueId, 'replaced by image', img.id);
-                newMap.delete(foundQueueId);
-                optimisticQueueIdsRef.current.delete(foundQueueId);
-                queueToImageMapRef.current.delete(foundQueueId);
+
+              // Priority 1: direct queue→image mapping (populated when queue marks completed)
+              let queueIdToRemove: string | null = null;
+              for (const [queueId, imageId] of queueToImageMapRef.current.entries()) {
+                if (imageId === img.id) {
+                  queueIdToRemove = queueId;
+                  break;
+                }
               }
-              
-              // Now add/update the image - PRESERVE existing URLs if payload doesn't contain them
+
+              // Priority 2: match by prompt — each split panel has a unique ordinal prompt,
+              // so this is safe even when multiple panels finish concurrently.
+              // Avoids the old "grab any queue ID" fallback that caused wrong-panel swaps.
+              if (!queueIdToRemove && img.prompt) {
+                for (const [id, item] of newMap.entries()) {
+                  if (optimisticQueueIdsRef.current.has(id) && item.prompt === img.prompt) {
+                    queueIdToRemove = id;
+                    break;
+                  }
+                }
+              }
+
+              if (queueIdToRemove) {
+                console.log('[Realtime] Removing queue item', queueIdToRemove, 'replaced by image', img.id);
+                newMap.delete(queueIdToRemove);
+                optimisticQueueIdsRef.current.delete(queueIdToRemove);
+                queueToImageMapRef.current.delete(queueIdToRemove);
+              }
+
+              // Add/update the real image — preserve existing URLs if payload lacks them
               const existing = newMap.get(img.id);
               const realtimeUrl = img.master_url || img.url || existing?.url || undefined;
               newMap.set(img.id, {
@@ -330,7 +331,7 @@ export default function Index() {
                 masterHeight: img.master_height || existing?.masterHeight || undefined,
                 masterBytes: img.master_bytes || existing?.masterBytes || undefined,
               });
-              
+
               return newMap;
             });
             
