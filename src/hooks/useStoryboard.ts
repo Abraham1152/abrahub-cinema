@@ -405,11 +405,24 @@ export function useStoryboard() {
 
       // Extract cinema params from style_data (or use defaults)
       const styleData = scene.style_data || {};
-      const presetId = (styleData as any).presetId || 'arri-natural';
       const focalLength = (styleData as any).focalLength || '35mm';
       const aperture = (styleData as any).aperture || 'f2.8';
       const cameraAngle = (styleData as any).cameraAngle || 'eye-level';
       const filmLook = (styleData as any).filmLook || null;
+
+      // Camera preset (model) is LOCKED to the root scene of the chain — never varies per node
+      // Only focal_length and camera_angle can differ scene-to-scene
+      let presetId = (styleData as any).presetId || 'arri-natural';
+      if (scene.parent_scene_id) {
+        // Traverse up to the root of this connection chain
+        let cursor = scenes.find(s => s.id === scene.parent_scene_id);
+        while (cursor?.parent_scene_id) {
+          cursor = scenes.find(s => s.id === cursor!.parent_scene_id);
+        }
+        if (cursor) {
+          presetId = (cursor.style_data as any)?.presetId || presetId;
+        }
+      }
 
       // Fetch reference images as base64 for the Studio pipeline
       const refs = sceneReferences[sceneId] || [];
@@ -807,6 +820,11 @@ export function useStoryboard() {
     const createdSceneIds: string[] = [];
     let firstSceneId: string | null = null;
 
+    // Lock camera preset to scene 1 for the entire campaign — only angle & lens vary
+    const rootPresetId = VALID_PRESET_IDS.includes(structure.scenes[0]?.preset_id)
+      ? structure.scenes[0].preset_id
+      : 'arri-natural';
+
     for (let i = 0; i < structure.scenes.length; i++) {
       const s = structure.scenes[i];
       const posX = startX + i * (sceneWidth + gap);
@@ -814,8 +832,9 @@ export function useStoryboard() {
       // First scene is root; subsequent scenes are children that inherit style
       const isChild = i > 0 && firstSceneId;
 
-      // Use AI-chosen camera params, falling back to cinematic defaults
-      const presetId = VALID_PRESET_IDS.includes(s.preset_id) ? s.preset_id : 'arri-natural';
+      // Camera preset: ALWAYS scene 1's — ensures visual harmony across all nodes
+      // Only focal_length and camera_angle vary per scene (AI Director's artistic choice)
+      const presetId = rootPresetId;
       const focalLength = VALID_FOCAL_LENGTHS.includes(s.focal_length) ? s.focal_length : '35mm';
       const aperture = VALID_APERTURES.includes(s.aperture) ? s.aperture : 'f2.8';
       const cameraAngle = VALID_ANGLES.includes(s.camera_angle) ? s.camera_angle : 'eye-level';
