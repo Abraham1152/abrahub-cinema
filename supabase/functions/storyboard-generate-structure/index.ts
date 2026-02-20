@@ -165,7 +165,10 @@ Não escreva texto fora do JSON.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "Erro ao gerar estrutura via Gemini" }), {
+      // Return raw Gemini error so we can diagnose
+      let geminiErrorMsg = `Gemini ${geminiResponse.status}`;
+      try { const parsed = JSON.parse(errorText); geminiErrorMsg = parsed?.error?.message || parsed?.message || errorText; } catch { geminiErrorMsg = errorText; }
+      return new Response(JSON.stringify({ error: `Erro Gemini: ${geminiErrorMsg}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
