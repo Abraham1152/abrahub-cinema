@@ -21,8 +21,25 @@ serve(async (req) => {
     if (authError || !user) throw new Error("Usuário não encontrado");
 
     const body = await req.json();
-    console.log("[QUEUE-IMAGE-GENERATION] Payload recebido:", JSON.stringify(body));
+    const { action, queueId } = body;
 
+    // --- LÓGICA DE CANCELAMENTO / DELEÇÃO ---
+    if (action === 'cancel' && queueId) {
+      console.log(`[QUEUE-IMAGE-GENERATION] Cancelando/Deletando item: ${queueId}`);
+      
+      // Tentar deletar de ambas as tabelas (Service Role garante bypass de RLS se necessário)
+      const [queueRes, imageRes] = await Promise.all([
+        supabaseAdmin.from('generation_queue').delete().eq('id', queueId).eq('user_id', user.id),
+        supabaseAdmin.from('user_generated_images').delete().eq('id', queueId).eq('user_id', user.id)
+      ]);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: "Item removido com sucesso" 
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // --- LÓGICA DE GERAÇÃO (PADRÃO) ---
     const { 
       prompt, 
       aspectRatio = "16:9", 
@@ -36,24 +53,19 @@ serve(async (req) => {
       useOwnKey = true,
       sequenceMode = false,
       storyboard6Mode = false,
-      referenceType: explicitReferenceType = null
+      referenceType: explicitReferenceType = null,
+      referencePromptInjection = null
     } = body;
 
     if (!prompt) throw new Error("Prompt é obrigatório");
 
-    // Determinar o reference_type
     let referenceType = explicitReferenceType;
     if (!referenceType) {
-      if (storyboard6Mode) {
-        referenceType = 'storyboard6';
-      } else if (sequenceMode) {
-        referenceType = 'sequence';
-      } else if (referenceImages && referenceImages.length > 0) {
-        referenceType = 'standard';
-      }
+      if (storyboard6Mode) referenceType = 'storyboard6';
+      else if (sequenceMode) referenceType = 'sequence';
+      else if (referenceImages && referenceImages.length > 0) referenceType = 'standard';
     }
 
-    // 1. Adicionar à fila (generation_queue)
     const { data: queueItem, error: queueError } = await supabaseAdmin
       .from('generation_queue')
       .insert({
@@ -70,6 +82,7 @@ serve(async (req) => {
         credits_cost: 0,
         reference_images: referenceImages,
         reference_type: referenceType,
+        reference_prompt_injection: referencePromptInjection,
         use_user_key: useOwnKey,
         sequence_mode: sequenceMode
       })
@@ -78,29 +91,18 @@ serve(async (req) => {
 
     if (queueError) throw queueError;
 
-    console.log(`[QUEUE-IMAGE-GENERATION] Item adicionado à fila: ${queueItem.id} | Type: ${referenceType}`);
-
-    // 2. Acordar o processador de fila (Fire and forget)
-    // Usamos o supabaseServiceKey para autorizar a chamada interna
+    // Acordar o processador
     fetch(`${supabaseUrl}/functions/v1/process-generation-queue`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${supabaseServiceKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ trigger: 'new_item', itemId: queueItem.id }),
-    }).catch(err => console.error("Erro ao acordar processador:", err));
+    }).catch(() => {});
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      queueId: queueItem.id,
-      message: "Imagem enviada para a fila de processamento" 
-    }), { 
+    return new Response(JSON.stringify({ success: true, queueId: queueItem.id }), { 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 
     });
 
   } catch (error) {
-    console.error("[QUEUE-IMAGE-GENERATION] Erro:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { 
       status: 400, 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 

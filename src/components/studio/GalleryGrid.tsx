@@ -381,10 +381,13 @@ export function GalleryGrid({
                               className="h-8 text-xs bg-neutral-800 border-neutral-700 text-white hover:bg-neutral-700"
                               onClick={(e) => { 
                                 e.stopPropagation(); 
-                                if (timedOut && onCancelQueue) {
-                                  onCancelQueue(item.id);
-                                } else if (onDelete) {
+                                // Always try to delete the record if it exists
+                                if (onDelete) {
                                   onDelete(item.id);
+                                }
+                                // Also try to cancel if it's still technically in queue
+                                if (onCancelQueue && !item.id.startsWith('temp-')) {
+                                  onCancelQueue(item.id);
                                 }
                               }}
                             >

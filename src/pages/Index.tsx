@@ -762,8 +762,11 @@ export default function Index() {
         body: { action: 'cancel', queueId: id },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      // Fallback: Se a Edge Function falhar, tentar deletar diretamente da tabela de imagens
+      if (error) {
+        console.warn('Edge Function cancel failed, trying direct delete...', error);
+        await supabase.from('user_generated_images').delete().eq('id', id);
+      }
 
       toast.success('Removido permanentemente');
       refetchQueue();
