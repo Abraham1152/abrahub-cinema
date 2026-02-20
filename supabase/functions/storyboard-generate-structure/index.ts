@@ -64,7 +64,7 @@ serve(async (req) => {
 
     const textPrompt = `Você é um diretor criativo especializado em campanhas cinematográficas.
 
-Crie uma estrutura narrativa clara dividida em cenas.
+Crie uma estrutura narrativa clara dividida em cenas para uma campanha contínua e coesa.
 
 Projeto:
 Objetivo: ${objective}
@@ -76,9 +76,10 @@ Tom: ${tone}
 REGRAS:
 - Mínimo 3 cenas, máximo 8 cenas
 - A soma das durações deve ser aproximadamente ${duration}
-- Cada cena deve ter uma função narrativa clara
+- Cada cena deve ter uma função narrativa clara dentro da campanha
 - Os prompts sugeridos devem ser em inglês e cinematográficos
 - camera_suggestion deve ser em inglês (ex: "slow dolly in", "tracking shot")
+- video_prompt: descreva em inglês (50-80 palavras) EXATAMENTE como animar a imagem-chave daquela cena para gerar o clipe de vídeo. Inclua: movimento de câmera, movimento do sujeito/elementos, atmosfera, duração, tom emocional. Os video_prompts de todas as cenas juntos devem formar uma sequência narrativa contínua (cena 1 estabelece → 2 desenvolve → 3 clímax → 4 resolve → etc).
 
 Retorne JSON estruturado no formato:
 
@@ -94,7 +95,8 @@ Retorne JSON estruturado no formato:
       "visual_description": "descrição visual detalhada",
       "suggested_prompt_base": "cinematic English prompt for image generation",
       "camera_suggestion": "camera movement suggestion",
-      "emotion": "emoção principal"
+      "emotion": "emoção principal",
+      "video_prompt": "Slow dolly in from wide establishing shot pushing toward subject. Soft golden light rakes from left, subject breathes naturally. Background depth-of-field shift reveals environment. Duration 5 seconds. Tone: intimate and establishing, sets the campaign world."
     }
   ]
 }

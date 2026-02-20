@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, RefreshCw, Loader2, Clock, Camera, Sparkles } from 'lucide-react';
+import { Check, RefreshCw, Loader2, Clock, Camera, ChevronDown, ChevronUp, Film, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface GeneratedScene {
   scene_number: number;
@@ -10,6 +12,7 @@ export interface GeneratedScene {
   suggested_prompt_base: string;
   camera_suggestion: string;
   emotion: string;
+  video_prompt?: string;
 }
 
 export interface GeneratedStructure {
@@ -26,51 +29,175 @@ interface AIDirectorPreviewProps {
   isRegenerating: boolean;
 }
 
-export function AIDirectorPreview({ structure, onConfirm, onRegenerate, canRegenerate, isRegenerating }: AIDirectorPreviewProps) {
+// Emotion → color mapping for visual variety
+const EMOTION_COLORS: Record<string, string> = {
+  alegria: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  tristeza: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  tensão: 'bg-red-500/20 text-red-300 border-red-500/30',
+  esperança: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  nostalgia: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  suspense: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  euforia: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  melancolia: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  default: 'bg-white/10 text-white/60 border-white/20',
+};
+
+function getEmotionColor(emotion: string): string {
+  const key = emotion?.toLowerCase().trim();
+  return EMOTION_COLORS[key] || EMOTION_COLORS.default;
+}
+
+function SceneCard({ scene, index, total }: { scene: GeneratedScene; index: number; total: number }) {
+  const [videoExpanded, setVideoExpanded] = useState(false);
+
+  const copyVideoPrompt = () => {
+    if (!scene.video_prompt) return;
+    navigator.clipboard.writeText(scene.video_prompt);
+    toast.success('Prompt de vídeo copiado!');
+  };
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="p-3 rounded-lg bg-muted/50 border border-border">
-        <h3 className="font-semibold text-sm">{structure.title}</h3>
-        <p className="text-xs text-muted-foreground mt-1">{structure.concept}</p>
+    <div className="flex items-start gap-0 flex-shrink-0">
+      {/* Scene card */}
+      <div
+        className="w-52 rounded-xl border border-white/10 bg-neutral-900 flex flex-col overflow-hidden"
+        style={{ minHeight: 280 }}
+      >
+        {/* Frame number bar */}
+        <div className="flex items-center justify-between px-3 py-2 bg-neutral-800/80 border-b border-white/5">
+          <span className="font-mono text-xs font-bold text-primary tracking-widest">
+            {String(scene.scene_number).padStart(2, '0')}
+          </span>
+          <span className="text-[10px] text-white/30 font-mono uppercase tracking-wider">
+            frame
+          </span>
+        </div>
+
+        {/* Content */}
+        <div className="flex flex-col flex-1 p-3 gap-2">
+          {/* Scene name */}
+          <p className="text-xs font-semibold text-white leading-tight line-clamp-1">
+            {scene.name}
+          </p>
+
+          {/* Visual description */}
+          <p className="text-[11px] text-white/50 leading-relaxed line-clamp-3 flex-1">
+            {scene.visual_description}
+          </p>
+
+          {/* Divider */}
+          <div className="border-t border-white/8 pt-2 flex flex-wrap gap-1.5">
+            {/* Duration */}
+            <span className="flex items-center gap-1 text-[10px] text-white/40 bg-white/5 px-1.5 py-0.5 rounded-full border border-white/8">
+              <Clock className="h-2.5 w-2.5" />
+              {scene.duration_seconds}s
+            </span>
+            {/* Emotion */}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${getEmotionColor(scene.emotion)}`}>
+              {scene.emotion}
+            </span>
+          </div>
+
+          {/* Camera */}
+          <div className="flex items-start gap-1 text-[10px] text-white/35">
+            <Camera className="h-2.5 w-2.5 mt-0.5 shrink-0" />
+            <span className="leading-tight line-clamp-2">{scene.camera_suggestion}</span>
+          </div>
+
+          {/* Video prompt section */}
+          {scene.video_prompt && (
+            <div className="border-t border-white/8 pt-2 mt-auto">
+              <button
+                className="flex items-center justify-between w-full text-[10px] text-primary/80 hover:text-primary transition-colors"
+                onClick={() => setVideoExpanded(v => !v)}
+              >
+                <span className="flex items-center gap-1 font-medium">
+                  <Film className="h-2.5 w-2.5" />
+                  Prompt de Vídeo
+                </span>
+                {videoExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+              </button>
+
+              {videoExpanded && (
+                <div className="mt-1.5 bg-black/30 rounded-lg p-2 relative">
+                  <p className="text-[10px] font-mono text-white/50 leading-relaxed pr-5">
+                    {scene.video_prompt}
+                  </p>
+                  <button
+                    onClick={copyVideoPrompt}
+                    className="absolute top-1.5 right-1.5 p-0.5 text-white/30 hover:text-white/70 transition-colors"
+                    title="Copiar prompt"
+                  >
+                    <Copy className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Scenes */}
-      <div className="space-y-2">
-        {structure.scenes.map((scene, i) => (
-          <div key={i} className="p-3 rounded-lg border border-border bg-background hover:border-primary/20 transition-colors">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                    {scene.scene_number}
-                  </span>
-                  <span className="text-sm font-medium truncate">{scene.name}</span>
-                </div>
-                <p className="text-xs text-muted-foreground mb-2">{scene.objective}</p>
-                <p className="text-xs leading-relaxed">{scene.visual_description}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50">
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Clock className="h-3 w-3" /> {scene.duration_seconds}s
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Camera className="h-3 w-3" /> {scene.camera_suggestion}
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <Sparkles className="h-3 w-3" /> {scene.emotion}
-              </span>
-            </div>
+      {/* Arrow connector — only between cards */}
+      {index < total - 1 && (
+        <div className="flex items-center self-center px-1 text-white/20">
+          <svg width="28" height="12" viewBox="0 0 28 12" fill="none">
+            <path d="M0 6h22M22 6l-5-4M22 6l-5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AIDirectorPreview({ structure, onConfirm, onRegenerate, canRegenerate, isRegenerating }: AIDirectorPreviewProps) {
+  const totalDuration = structure.scenes.reduce((acc, s) => acc + s.duration_seconds, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Campaign header */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-sm text-white truncate">{structure.title}</h3>
+            <p className="text-xs text-white/50 mt-0.5 leading-relaxed">{structure.concept}</p>
           </div>
+          <div className="flex-shrink-0 text-right">
+            <p className="text-[10px] text-white/30">Duração total</p>
+            <p className="text-sm font-mono font-bold text-primary">{totalDuration}s</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Film strip — horizontal scroll */}
+      <div className="overflow-x-auto pb-2 -mx-1 px-1">
+        <div className="flex items-start gap-0 w-max">
+          {structure.scenes.map((scene, i) => (
+            <SceneCard
+              key={i}
+              scene={scene}
+              index={i}
+              total={structure.scenes.length}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Scene count indicator */}
+      <div className="flex items-center gap-1.5 justify-center">
+        {structure.scenes.map((_, i) => (
+          <div
+            key={i}
+            className="h-1 rounded-full bg-primary/40"
+            style={{ width: `${Math.max(24, 80 / structure.scenes.length)}px` }}
+          />
         ))}
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 pt-2">
+      <div className="flex items-center gap-2 pt-1">
         <Button onClick={onConfirm} className="flex-1 gap-2">
           <Check className="h-4 w-4" />
-          Criar Cenas no Canvas
+          Criar {structure.scenes.length} Cenas no Canvas
         </Button>
         <Button
           variant="outline"

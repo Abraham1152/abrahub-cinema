@@ -768,7 +768,11 @@ export function useStoryboard() {
           prompt_base: s.suggested_prompt_base || '',
           description: s.visual_description || '',
           aspect_ratio: format,
-          style_data: baseStyleData,
+          style_data: {
+            ...baseStyleData,
+            video_prompt: s.video_prompt || '',
+            scene_emotion: s.emotion || '',
+          },
           sort_order: scenes.length + i,
           position_x: posX,
           position_y: startY,
