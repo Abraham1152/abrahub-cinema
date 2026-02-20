@@ -904,12 +904,15 @@ export default function Index() {
       <Header user={user} />
 
       {!hasValidApiKey && !authLoading && !isCheckingApiKey && (
-        <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-500">
-          <Sparkles className="h-4 w-4 text-yellow-500" />
+        <button
+          onClick={() => setShowOnboarding(true)}
+          className="w-full bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-500 hover:bg-yellow-500/20 transition-colors cursor-pointer"
+        >
+          <Sparkles className="h-4 w-4 text-yellow-500 shrink-0" />
           <p className="text-xs font-medium text-yellow-500 text-center">
-            Atenção: Você precisa configurar sua <strong>Google API Key</strong> para gerar cenas cinematográficas.
+            Configure aqui sua <strong>API Key</strong> para gerar cenas cinematográficas →
           </p>
-        </div>
+        </button>
       )}
 
       <main className="pb-32">
