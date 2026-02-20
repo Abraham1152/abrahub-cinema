@@ -51,7 +51,13 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
       });
 
       if (error) {
-        const msg = typeof error === 'object' && error.message ? error.message : 'Erro ao gerar estrutura';
+        let msg = 'Erro ao gerar estrutura';
+        try {
+          const errorBody = await (error as any).context?.json();
+          msg = errorBody?.error || error.message || msg;
+        } catch {
+          msg = error.message || msg;
+        }
         toast.error(msg);
         return;
       }
