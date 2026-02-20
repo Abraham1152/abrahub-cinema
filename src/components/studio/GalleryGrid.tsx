@@ -239,7 +239,6 @@ export function GalleryGrid({
       });
       
       toast.success(`${sortedPanels.length} cena(s) adicionada(s) à fila!`);
-      onRefresh?.();
 
     } catch (err) {
       console.error('[Split exception]', err);
