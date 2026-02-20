@@ -55,60 +55,62 @@ function SceneCard({ scene, onUpdate }: { scene: GeneratedScene; onUpdate: (u: P
   const [videoExpanded, setVideoExpanded] = useState(false);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-neutral-900 overflow-hidden">
+    <div className="w-[300px] shrink-0 h-full flex flex-col rounded-xl border border-white/10 bg-neutral-900 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2.5 bg-neutral-800/80 border-b border-white/5">
-        <span className="font-mono text-xs font-bold text-primary tracking-widest w-5 shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2.5 bg-neutral-800/80 border-b border-white/5 shrink-0">
+        <span className="font-mono text-sm font-bold text-primary tracking-widest w-6 shrink-0">
           {String(scene.scene_number).padStart(2, '0')}
         </span>
         <input
           value={scene.name}
           onChange={e => onUpdate({ name: e.target.value })}
-          className="flex-1 bg-transparent text-sm font-semibold text-white border-none outline-none focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
+          className="flex-1 min-w-0 bg-transparent text-sm font-semibold text-white border-none outline-none focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
         />
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getEmotionColor(scene.emotion)}`}>
-            {scene.emotion}
-          </span>
-          <span className="flex items-center gap-1 text-[10px] text-white/40 font-mono">
-            <Clock className="h-2.5 w-2.5" />
-            {scene.duration_seconds}s
-          </span>
-        </div>
+        <span className="flex items-center gap-1 text-xs text-white/40 font-mono shrink-0">
+          <Clock className="h-3 w-3" />
+          {scene.duration_seconds}s
+        </span>
       </div>
 
-      {/* Body */}
-      <div className="px-4 py-3 space-y-3">
+      {/* Emotion badge */}
+      <div className="px-3 pt-2 shrink-0">
+        <span className={`inline-flex text-xs px-2 py-0.5 rounded-full border ${getEmotionColor(scene.emotion)}`}>
+          {scene.emotion}
+        </span>
+      </div>
+
+      {/* Body — scrollable */}
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3" style={{ scrollbarWidth: 'thin' }}>
         {/* Objective — read-only */}
         {scene.objective && (
-          <p className="text-[11px] text-white/35 italic leading-relaxed border-l-2 border-white/10 pl-2">
+          <p className="text-xs text-white/40 italic leading-relaxed border-l-2 border-white/10 pl-2">
             {scene.objective}
           </p>
         )}
 
         {/* Visual description */}
         <div>
-          <label className="text-[9px] font-medium text-white/30 uppercase tracking-wider block mb-1">
+          <label className="text-[10px] font-medium text-white/30 uppercase tracking-wider block mb-1">
             Descrição Visual
           </label>
           <textarea
             value={scene.visual_description}
             onChange={e => onUpdate({ visual_description: e.target.value })}
-            rows={2}
-            className="w-full bg-white/5 border border-white/8 rounded-lg px-2.5 py-2 text-[11px] text-white/70 leading-relaxed resize-none outline-none focus:border-primary/40 transition-colors"
+            rows={3}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white/70 leading-relaxed resize-none outline-none focus:border-primary/40 transition-colors"
           />
         </div>
 
         {/* Prompt base */}
         <div>
-          <label className="text-[9px] font-medium text-white/30 uppercase tracking-wider block mb-1">
+          <label className="text-[10px] font-medium text-white/30 uppercase tracking-wider block mb-1">
             Prompt de Imagem
           </label>
           <textarea
             value={scene.suggested_prompt_base}
             onChange={e => onUpdate({ suggested_prompt_base: e.target.value })}
-            rows={2}
-            className="w-full bg-white/5 border border-white/8 rounded-lg px-2.5 py-2 text-[11px] text-white/70 font-mono leading-relaxed resize-none outline-none focus:border-primary/40 transition-colors"
+            rows={3}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-xs text-white/70 font-mono leading-relaxed resize-none outline-none focus:border-primary/40 transition-colors"
           />
         </div>
 
@@ -116,7 +118,7 @@ function SceneCard({ scene, onUpdate }: { scene: GeneratedScene; onUpdate: (u: P
         {(scene.preset_id || scene.focal_length || scene.camera_angle) && (
           <div className="flex flex-wrap gap-1.5">
             {[scene.preset_id, scene.focal_length, scene.camera_angle].filter(Boolean).map(v => (
-              <span key={v} className="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-white/30 bg-white/5">
+              <span key={v} className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-white/30 bg-white/5">
                 {v}
               </span>
             ))}
@@ -127,23 +129,23 @@ function SceneCard({ scene, onUpdate }: { scene: GeneratedScene; onUpdate: (u: P
         {scene.video_prompt && (
           <div className="border-t border-white/8 pt-2">
             <button
-              className="flex items-center justify-between w-full text-[10px] text-primary/60 hover:text-primary/90 transition-colors"
+              className="flex items-center justify-between w-full text-xs text-primary/60 hover:text-primary/90 transition-colors"
               onClick={() => setVideoExpanded(v => !v)}
             >
               <span className="flex items-center gap-1 font-medium">
-                <Film className="h-2.5 w-2.5" />
+                <Film className="h-3 w-3" />
                 Prompt de Vídeo
               </span>
-              {videoExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+              {videoExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
             {videoExpanded && (
               <div className="mt-1.5 bg-black/30 rounded-lg p-2 relative">
-                <p className="text-[10px] font-mono text-white/40 leading-relaxed pr-6">{scene.video_prompt}</p>
+                <p className="text-xs font-mono text-white/40 leading-relaxed pr-6">{scene.video_prompt}</p>
                 <button
                   onClick={() => { navigator.clipboard.writeText(scene.video_prompt!); toast.success('Copiado!'); }}
                   className="absolute top-1.5 right-1.5 p-0.5 text-white/20 hover:text-white/60 transition-colors"
                 >
-                  <Copy className="h-2.5 w-2.5" />
+                  <Copy className="h-3 w-3" />
                 </button>
               </div>
             )}
@@ -178,7 +180,7 @@ export function AIDirectorPreview({
               className="flex-1 bg-transparent text-sm font-bold text-white border-none outline-none focus:bg-white/5 rounded px-1 py-0.5"
             />
             <div className="shrink-0 text-right">
-              <p className="text-[10px] text-white/30">Total</p>
+              <p className="text-xs text-white/30">Total</p>
               <p className="text-sm font-mono font-bold text-primary">{totalDuration}s · {structure.scenes.length} cenas</p>
             </div>
           </div>
@@ -191,26 +193,31 @@ export function AIDirectorPreview({
         </div>
       </div>
 
-      {/* Scene list */}
-      <div className="overflow-y-auto flex-1 px-5 space-y-2 pb-3" style={{ scrollbarWidth: 'thin' }}>
-        {structure.scenes.map((scene, i) => (
-          <SceneCard key={i} scene={scene} onUpdate={u => updateScene(i, u)} />
-        ))}
+      {/* Horizontal film strip */}
+      <div
+        className="flex-1 overflow-x-auto px-5 pb-3"
+        style={{ scrollbarWidth: 'thin', minHeight: 0 }}
+      >
+        <div className="flex gap-3 h-full" style={{ minWidth: 'max-content' }}>
+          {structure.scenes.map((scene, i) => (
+            <SceneCard key={i} scene={scene} onUpdate={u => updateScene(i, u)} />
+          ))}
+        </div>
       </div>
 
       {/* Suggestions */}
       <div className="px-5 pb-3 flex-shrink-0">
         <div className="rounded-xl border border-white/10 bg-neutral-900/60 p-3 space-y-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-medium text-white/40 uppercase tracking-wider">
-            <Lightbulb className="h-3 w-3" />
+          <label className="flex items-center gap-1.5 text-xs font-medium text-white/40 uppercase tracking-wider">
+            <Lightbulb className="h-3.5 w-3.5" />
             Sugestões para regenerar
           </label>
           <Textarea
             value={suggestions}
             onChange={e => setSuggestions(e.target.value)}
             placeholder="Ex: Quero que a cena 2 seja mais dramática, adicione uma cena de transição entre 3 e 4, tom mais épico no final..."
-            className="min-h-[60px] resize-none text-xs bg-white/5 border-white/10 text-white/70 placeholder:text-white/20 focus-visible:ring-primary/30"
-            rows={3}
+            className="min-h-[52px] resize-none text-xs bg-white/5 border-white/10 text-white/70 placeholder:text-white/20 focus-visible:ring-primary/30"
+            rows={2}
           />
         </div>
       </div>
