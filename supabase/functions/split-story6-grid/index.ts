@@ -20,49 +20,71 @@ serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const authHeader = req.headers.get("Authorization");
-    const { data: { user } } = await supabaseAdmin.auth.getUser(authHeader!.replace("Bearer ", ""));
-    if (!user) throw new Error("Não autorizado");
+    if (!authHeader) throw new Error("Não autorizado: Header ausente");
+    
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(authHeader.replace("Bearer ", ""));
+    if (authError || !user) throw new Error("Usuário não autenticado");
 
     const { data: keyData } = await supabaseAdmin.from('user_api_keys').select('gemini_api_key, is_valid').eq('user_id', user.id).maybeSingle();
-    if (!keyData?.is_valid || !keyData?.gemini_api_key) throw new Error("API Key não configurada.");
+    if (!keyData?.is_valid || !keyData?.gemini_api_key) throw new Error("Sua API Key do Gemini está ausente ou inválida nas configurações.");
 
-    const { imageUrl, panels, quality = "2K" } = await req.json();
+    const body = await req.json();
+    const { imageUrl, storagePath, panels, quality = "2K" } = body;
+    
+    if (!panels) throw new Error("Dados incompletos para processar o painel");
+    
     const panelNum = panels[0];
-    const position = PANEL_POSITIONS[panelNum];
+    const position = PANEL_POSITIONS[panelNum] || `panel ${panelNum}`;
 
-    // 1. Download image from Storage
-    const path = imageUrl.split('storyboard-images/')[1];
-    const { data: blob } = await supabaseAdmin.storage.from('storyboard-images').download(path);
-    if (!blob) throw new Error("Falha ao baixar imagem original.");
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())));
+    // Resolve Storage Path
+    let finalPath = storagePath || imageUrl;
+    if (finalPath.includes('storyboard-images/')) {
+      finalPath = finalPath.split('storyboard-images/')[1].split('?')[0];
+    }
+    
+    console.log(`[SPLIT] Processing: ${finalPath} for user ${user.id}`);
 
-    // 2. Optimized Prompt for Gemini 2.0 Flash
-    const prompt = `This image is a 2x3 grid. Extract and upscale panel ${panelNum} (${position}). 
-    Rules: Standalone 16:9 image. Match characters/style exactly. High detail cinematic. No borders.`;
+    // 1. Download from Storage
+    const { data: blob, error: downloadError } = await supabaseAdmin.storage.from('storyboard-images').download(finalPath);
+    if (downloadError || !blob) {
+      console.error("[SPLIT] Storage error:", downloadError);
+      throw new Error(`Não foi possível acessar a imagem: ${downloadError?.message || 'Arquivo não encontrado'}`);
+    }
 
-    // 3. Call Gemini 2.0 Flash (Fastest model)
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${keyData.gemini_api_key}`, {
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+    // 2. Build Prompt
+    const prompt = `Image is a 2x3 grid. Extract and generative upscale PANEL ${panelNum} (${position}). Output standalone 16:9 cinematic image. Match original characters/lighting exactly.`;
+
+    // 3. Gemini API
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${keyData.gemini_api_key}`;
+    const geminiRes = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: base64 } }] }],
-        generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "16:9", imageSize: quality } }
+        generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "16:9", imageSize: quality }, temperature: 0.4 }
       })
     });
 
     const aiData = await geminiRes.json();
+    if (aiData.error) throw new Error(`Gemini: ${aiData.error.message}`);
+    
     const resultBase64 = aiData.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
-    if (!resultBase64) throw new Error(aiData.error?.message || "Gemini falhou na geração.");
+    if (!resultBase64) throw new Error("O Gemini não retornou a imagem (pode ter sido bloqueada pelos filtros de segurança).");
 
-    // 4. Save Image
+    // 4. Save and return
     const newId = crypto.randomUUID();
     const raw = Uint8Array.from(atob(resultBase64), c => c.charCodeAt(0));
-    await supabaseAdmin.storage.from("storyboard-images").upload(`${user.id}/realism/${newId}.png`, raw, { contentType: 'image/png' });
-    const { data: { publicUrl } } = supabaseAdmin.storage.from("storyboard-images").getPublicUrl(`${user.id}/realism/${newId}.png`);
+    const newPath = `${user.id}/realism/${newId}.png`;
+    
+    await supabaseAdmin.storage.from("storyboard-images").upload(newPath, raw, { contentType: 'image/png' });
+    const { data: { publicUrl } } = supabaseAdmin.storage.from("storyboard-images").getPublicUrl(newPath);
 
     await supabaseAdmin.from('user_generated_images').insert({
-      id: newId, user_id: user.id, prompt: `Upscale Panel ${panelNum}`, 
-      model_label: "ABRAhub Split", status: "ready", url: publicUrl, master_url: publicUrl, aspect_ratio: "16:9"
+      id: newId, user_id: user.id, prompt: `Upscale Painel ${panelNum}`, 
+      model_label: "ABRAhub Realism (Split)", status: 'ready', url: publicUrl, master_url: publicUrl, aspect_ratio: "16:9"
     });
 
     return new Response(JSON.stringify({ success: true, images: [{ url: publicUrl }] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
