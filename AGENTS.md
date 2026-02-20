@@ -32,14 +32,13 @@ We operate with three distinct paid tiers. Access is restricted via a whitelist 
 - **Onboarding:** Specialized modal inviting new paid users to set up their Gemini Key.
 
 ## 🛠️ Recent Milestones
-- **GRID Mode Implementation:** Updated `process-generation-queue` with a specialized prompt injection for `storyboard6` mode, forcing Gemini to generate 2x3 grid layouts.
-- **Async Queue Flow:** Refactored `queue-image-generation` into a fast broker and updated `Index.tsx` to handle async state, maintaining the "Generating..." card until completion.
-- **UI Bug Fix:** Removed the automatic image download behavior when clicking Generate in the Studio.
+- **Grid Rule Hardening:** Updated `process-generation-queue` with a prohibited rule for any layout other than 6 panels (2x3). Gemini is now strictly forbidden from generating 9-panel grids.
+- **Generative Split/Upscale:** Refactored `split-story6-grid` into a generative upscale engine using Gemini 2.0 Flash Exp. It now focuses on a single panel, upscales it cinematographically, and uses the user's BYOK API Key.
+- **Realtime Stability:** Fixed the "vanishing card" bug by implementing an atomic swap between temporary IDs and real DB queue IDs immediately after the server response.
+- **Workflow Update:** Mandatory auto-update of `AGENTS.md` after every technical modification to ensure context continuity.
 - **Critical Stability:** Fixed "white screen" issue by locking `base: "./"` in `vite.config.ts`.
-- **Storyboard Cleanup:** Removed "Continuação" button from nodes.
-- **Tier Simplification:** System now exclusively supports Community, PRO, and PRO+ tiers.
-- **Webhook Validation:** Kiwify verified; Stripe ready for LIVE events.
-- **Onboarding Fix:** Eliminated UI "flash" during page refresh.
+- **Webhook Validation:** Kiwify and Stripe LIVE webhooks are 100% verified and operational.
+- **Mass Import:** Successfully authorized 371 users in the `authorized_users` whitelist.
 
 ## 🚀 Vision for the Future
 - **Local Storage Management:** Files are kept for 7 days to optimize storage costs.

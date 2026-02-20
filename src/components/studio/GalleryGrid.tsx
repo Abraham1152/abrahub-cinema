@@ -149,18 +149,25 @@ export function GalleryGrid({
     
     for (let i = 0; i < sortedPanels.length; i++) {
       toast.loading(`Gerando painel ${sortedPanels[i]}... (${i + 1}/${sortedPanels.length})`, { id: toastId });
-      const { data, error } = await supabase.functions.invoke('split-story6-grid', {
-        body: {
-          imageUrl: sourceItem.masterUrl || sourceItem.url,
-          imageId: sourceItem.id,
-          panels: [sortedPanels[i]],
-          quality: '2K',
-        },
-      });
-      if (!error && data?.images?.length > 0) {
-        successCount++;
-        // Refresh gallery after each panel to show it immediately
-        onRefresh?.();
+      try {
+        const { data, error } = await supabase.functions.invoke('split-story6-grid', {
+          body: {
+            imageUrl: sourceItem.masterUrl || sourceItem.url,
+            imageId: sourceItem.id,
+            panels: [sortedPanels[i]],
+            quality: '2K',
+          },
+        });
+        
+        if (error || !data?.success) {
+          console.error('[Split Error]', error || data?.error);
+          toast.error(`Erro no painel ${sortedPanels[i]}: ${error?.message || data?.error || 'Desconhecido'}`);
+        } else if (data?.images?.length > 0) {
+          successCount++;
+          onRefresh?.();
+        }
+      } catch (err) {
+        console.error('[Split exception]', err);
       }
     }
     

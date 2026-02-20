@@ -89,7 +89,8 @@ function buildAestheticPrompt(userSceneDescription: string, preset: CinemaPreset
   const parts: string[] = [`Cinematic film still captured from a live-action movie.`];
   
   if (isStoryboard6) {
-    parts.push(`CRITICAL: Generate a STORYBOARD SHEET with exactly 6 DISTINCT PANELS arranged in a tight 2x3 grid layout.`);
+    parts.push(`CRITICAL LAYOUT RULE: You MUST generate a STORYBOARD SHEET with EXACTLY 6 DISTINCT PANELS arranged in a STRICT 2-row by 3-column grid (2x3).`);
+    parts.push(`PROHIBITED: Do NOT generate 4, 8, 9, or any other number of panels. ONLY 6 PANELS ARE ALLOWED.`);
     parts.push(`The 6 panels MUST COMPLETELY FILL the entire frame from edge to edge. No margins, no padding, and no external borders.`);
     parts.push(`Each panel should be a variation of the same scene but with slight changes in composition or timing.`);
     parts.push(`Ensure the layout is seamless: the panels should touch each other with only a thin hairline separator if needed, but the composite image must occupy the full selected aspect ratio without any letterboxing or empty space.`);
