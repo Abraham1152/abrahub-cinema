@@ -152,35 +152,18 @@ export function GalleryGrid({
       
       try {
         const fullUrl = sourceItem.masterUrl || sourceItem.url || '';
-        // Extract storage path more robustly
-        let storagePath = fullUrl;
-        if (fullUrl.includes('storyboard-images/')) {
-          storagePath = fullUrl.split('storyboard-images/')[1].split('?')[0];
-        }
-
+        
         const { data, error } = await supabase.functions.invoke('split-story6-grid', {
           body: {
             imageUrl: fullUrl,
-            storagePath: storagePath,
-            imageId: sourceItem.id,
             panels: [sortedPanels[i]],
             quality: '2K',
           },
         });
         
         if (error) {
-          // Try to extract JSON error message if possible
-          let errorMsg = error.message;
-          try {
-            const context = (error as any).context;
-            if (context) {
-              const body = await context.json();
-              errorMsg = body.error || errorMsg;
-            }
-          } catch (e) {}
-          
-          console.error('[Split Error]', errorMsg);
-          toast.error(`Erro no painel ${sortedPanels[i]}: ${errorMsg}`);
+          console.error('[Split Error]', error);
+          toast.error(`Erro no painel ${sortedPanels[i]}: ${error.message || 'Falha na comunicação'}`);
         } else if (data?.success) {
           successCount++;
           onRefresh?.();
@@ -189,7 +172,7 @@ export function GalleryGrid({
         }
       } catch (err) {
         console.error('[Split exception]', err);
-        toast.error('Erro ao processar painel');
+        toast.error(`Erro no painel ${sortedPanels[i]}: Problema interno`);
       }
     }
     
