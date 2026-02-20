@@ -195,8 +195,8 @@ export function AIDirectorPreview({
 
       {/* Horizontal film strip */}
       <div
-        className="flex-1 overflow-x-auto px-5 pb-3"
-        style={{ scrollbarWidth: 'thin', minHeight: 0 }}
+        className="overflow-x-auto px-5 pb-3"
+        style={{ scrollbarWidth: 'thin', height: '420px', flexShrink: 0 }}
       >
         <div className="flex gap-3 h-full" style={{ minWidth: 'max-content' }}>
           {structure.scenes.map((scene, i) => (

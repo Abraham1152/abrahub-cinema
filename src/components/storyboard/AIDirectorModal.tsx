@@ -91,7 +91,7 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
   if (structure) {
     return (
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-5xl bg-neutral-950 border-white/10 p-0 overflow-hidden flex flex-col" style={{ maxHeight: '90vh', height: '90vh' }}>
+        <DialogContent className="max-w-5xl bg-neutral-950 border-white/10 p-0 overflow-hidden flex flex-col" style={{ maxHeight: '90vh' }}>
           <DialogHeader className="px-5 pt-5 pb-3 flex-shrink-0">
             <DialogTitle className="flex items-center gap-2 text-white">
               <Clapperboard className="h-5 w-5 text-primary" />
