@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, DragEvent } from 'react';
-import { Trash2, GripHorizontal, Plus, X, Loader2, Star, Download, Image as ImageIcon, Sparkles, Upload, Copy, Link2Off, Link2, Palette, Film, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, GripHorizontal, Plus, X, Loader2, Star, Download, Image as ImageIcon, Sparkles, Upload, Copy, Link2Off, Link2, Film, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ImagePickerModal } from './ImagePickerModal';
 import { ImageViewerModal } from './ImageViewerModal';
 import { StoryboardEquipmentBar } from './StoryboardEquipmentBar';
@@ -40,8 +38,6 @@ interface SceneBlockProps {
   onSetPrimary: (sceneId: string, imageId: string) => void;
   onRemoveImage: (imageId: string, sceneId: string) => void;
   onUploadFileAsReference: (sceneId: string, file: File) => void;
-  onChangeStyleAnchor: (sceneId: string, imageId: string, previewUrl?: string) => void;
-  onRemoveStyleAnchor: (sceneId: string) => void;
   onCreateFromScene: (sceneId: string) => void;
   // Connection ports
   onStartConnectionDrag: (sceneId: string, e: React.MouseEvent) => void;
@@ -96,14 +92,12 @@ export function SceneBlock({
   scene, images, references, index, isDraggable, zoom, computedPosition, isGenerating,
   onUpdate, onDelete, onAddReference, onRemoveReference,
   onGenerateImage, onSetPrimary, onRemoveImage, onUploadFileAsReference,
-  onChangeStyleAnchor, onRemoveStyleAnchor,
   onCreateFromScene,
   onStartConnectionDrag, onDropConnection, isDraggingConnection, draggingFromId,
 }: SceneBlockProps) {
   const [localPrompt, setLocalPrompt] = useState(scene.prompt_base || '');
   const [viewerImage, setViewerImage] = useState<{ full: string; download?: string } | null>(null);
   const [refPickerOpen, setRefPickerOpen] = useState(false);
-  const [styleAnchorPickerOpen, setStyleAnchorPickerOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const promptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -307,76 +301,6 @@ export function SceneBlock({
         />
       </div>
 
-      {/* Style Anchor — only visible when inheritance is ON */}
-      {hasParent && scene.inherit_style && (
-        <div className="px-3 pb-1.5" data-no-drag>
-          <div className="flex items-center justify-between mb-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1 cursor-help">
-                    <Palette className="h-3 w-3 text-primary/60" />
-                    Âncora de Estilo
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="text-xs max-w-[200px]">
-                  Estilo visual herdado (iluminação, cor, câmera). Clique em + para trocar ou × para remover.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5"
-              onClick={() => setStyleAnchorPickerOpen(true)}
-              title="Trocar âncora de estilo"
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
-          {inheritedImages.length > 0 ? (
-            <div className="flex gap-1.5">
-              {inheritedImages.map(img => (
-                <div key={img.id} className="relative w-16 h-16">
-                  <div className="w-full h-full rounded-md overflow-hidden border-2 border-dashed border-primary/30 bg-primary/5 cursor-pointer opacity-80"
-                    onClick={() => {
-                      const url = img.master_url || img.image_url;
-                      if (url) setViewerImage({ full: url });
-                    }}
-                  >
-                    {(img.image_url || img.master_url) ? (
-                      <img src={img.image_url || img.master_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ImageIcon className="h-3 w-3 text-muted-foreground/30" />
-                      </div>
-                    )}
-                  </div>
-                  {/* X button to remove style anchor */}
-                  <button
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive flex items-center justify-center hover:bg-destructive/80 transition-colors z-10"
-                    onClick={(e) => { e.stopPropagation(); onRemoveStyleAnchor(scene.id); }}
-                    title="Remover âncora de estilo"
-                  >
-                    <X className="h-2.5 w-2.5 text-white" />
-                  </button>
-                  <Badge variant="secondary" className="absolute -bottom-1 left-0 right-0 mx-auto w-fit text-[7px] px-1 py-0 h-3.5 bg-primary/10 text-primary border-primary/20">
-                    Estilo
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div
-              className="border-2 border-dashed border-primary/20 rounded-md p-2 text-center cursor-pointer hover:border-primary/40 transition-colors"
-              onClick={() => setStyleAnchorPickerOpen(true)}
-            >
-              <Palette className="h-4 w-4 mx-auto mb-0.5 text-muted-foreground/40" />
-              <span className="text-[9px] text-muted-foreground/60">Escolher âncora de estilo</span>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* References */}
       <div
@@ -563,15 +487,6 @@ export function SceneBlock({
         onOpenChange={setRefPickerOpen}
         onSelectImage={(img) => {
           onAddReference(scene.id, img.id, img.preview_url || img.master_url || undefined, img.prompt);
-        }}
-      />
-
-      {/* Style Anchor Picker Modal */}
-      <ImagePickerModal
-        open={styleAnchorPickerOpen}
-        onOpenChange={setStyleAnchorPickerOpen}
-        onSelectImage={(img) => {
-          onChangeStyleAnchor(scene.id, img.id, img.preview_url || img.master_url || undefined);
         }}
       />
 

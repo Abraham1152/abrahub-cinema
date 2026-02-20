@@ -25,8 +25,6 @@ interface StoryboardCanvasProps {
   onSetPrimary: (sceneId: string, imageId: string) => void;
   onRemoveImage: (imageId: string, sceneId: string) => void;
   onUploadFileAsReference: (sceneId: string, file: File) => void;
-  onChangeStyleAnchor: (sceneId: string, imageId: string, previewUrl?: string) => void;
-  onRemoveStyleAnchor: (sceneId: string) => void;
   onAddConnection: (fromId: string, toId: string) => void;
   onRemoveConnection: (connId: string) => void;
   onSaveCanvasState: (state: { zoom: number; panX: number; panY: number }) => void;
@@ -39,7 +37,7 @@ export function StoryboardCanvas({
   onCreateScene, onUpdateScene, onDeleteScene,
   onAddReference, onRemoveReference,
   onGenerateImage, onSetPrimary, onRemoveImage,
-  onUploadFileAsReference, onChangeStyleAnchor, onRemoveStyleAnchor, onAddConnection, onRemoveConnection,
+  onUploadFileAsReference, onAddConnection, onRemoveConnection,
   onSaveCanvasState,
   onOpenAIDirector, onOpenAnimationBatch,
 }: StoryboardCanvasProps) {
@@ -385,8 +383,6 @@ export function StoryboardCanvas({
                   onSetPrimary={onSetPrimary}
                   onRemoveImage={onRemoveImage}
                   onUploadFileAsReference={onUploadFileAsReference}
-                  onChangeStyleAnchor={onChangeStyleAnchor}
-                  onRemoveStyleAnchor={onRemoveStyleAnchor}
                   onCreateFromScene={(sceneId) => onCreateScene(sceneId)}
                   onStartConnectionDrag={handleConnectionDragStart}
                   onDropConnection={handleConnectionDrop}

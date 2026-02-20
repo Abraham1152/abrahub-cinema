@@ -63,7 +63,6 @@ export default function Storyboard() {
     createScene, updateScene, deleteScene,
     addReference, removeReference, uploadFileAsReference,
     generateImage, setPrimaryImage, removeImageFromScene,
-    changeStyleAnchor, removeStyleAnchor,
     addConnection, removeConnection,
     saveCanvasState,
     createScenesFromStructure,
@@ -186,8 +185,6 @@ export default function Storyboard() {
           onSetPrimary={setPrimaryImage}
           onRemoveImage={removeImageFromScene}
           onUploadFileAsReference={uploadFileAsReference}
-          onChangeStyleAnchor={changeStyleAnchor}
-          onRemoveStyleAnchor={removeStyleAnchor}
           onAddConnection={addConnection}
           onRemoveConnection={removeConnection}
           onSaveCanvasState={saveCanvasState}

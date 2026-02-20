@@ -32,7 +32,7 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
     return regenTimestamps.current.length < 3;
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (suggestions?: string) => {
     if (!objective.trim()) {
       toast.error('Descreva o objetivo do projeto');
       return;
@@ -47,7 +47,7 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
 
     try {
       const { data, error } = await supabase.functions.invoke('storyboard-generate-structure', {
-        body: { objective: objective.trim(), type, duration, format, tone },
+        body: { objective: objective.trim(), type, duration, format, tone, ...(suggestions ? { suggestions } : {}) },
       });
 
       if (error) {
@@ -102,6 +102,7 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
             structure={structure}
             onConfirm={handleConfirm}
             onRegenerate={handleGenerate}
+            onStructureChange={setStructure}
             canRegenerate={canRegenerate()}
             isRegenerating={loading}
           />

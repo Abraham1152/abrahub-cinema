@@ -35,7 +35,7 @@ serve(async (req) => {
       });
     }
 
-    const { objective, type, duration, format, tone } = await req.json();
+    const { objective, type, duration, format, tone, suggestions } = await req.json();
     if (!objective || !type || !duration || !format || !tone) {
       return new Response(JSON.stringify({ error: "Todos os campos são obrigatórios" }), {
         status: 400,
@@ -115,6 +115,7 @@ REGRAS:
 - Os prompts sugeridos devem ser em inglês e cinematográficos
 - video_prompt: descreva em inglês (50-80 palavras) EXATAMENTE como animar a imagem-chave daquela cena. Inclua: movimento de câmera, movimento do sujeito/elementos, atmosfera, duração, tom emocional. Juntos devem formar sequência narrativa contínua.
 - Escolha os parâmetros de câmera que MELHOR SERVEM cada cena narrativamente — não use sempre os mesmos
+${suggestions ? `\nSUGESTÕES DO USUÁRIO (incorpore obrigatoriamente):\n${suggestions}` : ""}
 
 Retorne JSON estruturado no formato:
 

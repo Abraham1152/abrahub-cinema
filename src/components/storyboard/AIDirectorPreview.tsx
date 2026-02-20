@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check, RefreshCw, Loader2, Clock, Camera, ChevronDown, ChevronUp, Film, Copy } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Check, RefreshCw, Loader2, Clock, Film, Copy, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface GeneratedScene {
@@ -10,7 +11,10 @@ export interface GeneratedScene {
   duration_seconds: number;
   visual_description: string;
   suggested_prompt_base: string;
-  camera_suggestion: string;
+  preset_id?: string;
+  focal_length?: string;
+  aperture?: string;
+  camera_angle?: string;
   emotion: string;
   video_prompt?: string;
 }
@@ -24,7 +28,8 @@ export interface GeneratedStructure {
 interface AIDirectorPreviewProps {
   structure: GeneratedStructure;
   onConfirm: () => void;
-  onRegenerate: () => void;
+  onRegenerate: (suggestions?: string) => void;
+  onStructureChange: (s: GeneratedStructure) => void;
   canRegenerate: boolean;
   isRegenerating: boolean;
 }
@@ -46,154 +51,183 @@ function getEmotionColor(emotion: string): string {
   return EMOTION_COLORS[key] || EMOTION_COLORS.default;
 }
 
-function SceneCard({ scene, index, total }: { scene: GeneratedScene; index: number; total: number }) {
+function SceneCard({ scene, onUpdate }: { scene: GeneratedScene; onUpdate: (u: Partial<GeneratedScene>) => void }) {
   const [videoExpanded, setVideoExpanded] = useState(false);
 
-  const copyVideoPrompt = () => {
-    if (!scene.video_prompt) return;
-    navigator.clipboard.writeText(scene.video_prompt);
-    toast.success('Prompt de vídeo copiado!');
-  };
-
   return (
-    <div className="flex items-start gap-0 flex-shrink-0">
-      {/* Scene card */}
-      <div className="w-52 rounded-xl border border-white/10 bg-neutral-900 flex flex-col overflow-hidden">
-        {/* Frame number bar */}
-        <div className="flex items-center justify-between px-3 py-2 bg-neutral-800/80 border-b border-white/5 flex-shrink-0">
-          <span className="font-mono text-xs font-bold text-primary tracking-widest">
-            {String(scene.scene_number).padStart(2, '0')}
+    <div className="rounded-xl border border-white/10 bg-neutral-900 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-neutral-800/80 border-b border-white/5">
+        <span className="font-mono text-xs font-bold text-primary tracking-widest w-5 shrink-0">
+          {String(scene.scene_number).padStart(2, '0')}
+        </span>
+        <input
+          value={scene.name}
+          onChange={e => onUpdate({ name: e.target.value })}
+          className="flex-1 bg-transparent text-sm font-semibold text-white border-none outline-none focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
+        />
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getEmotionColor(scene.emotion)}`}>
+            {scene.emotion}
           </span>
-          <span className="text-[10px] text-white/30 font-mono uppercase tracking-wider">frame</span>
-        </div>
-
-        {/* Content */}
-        <div className="flex flex-col p-3 gap-2">
-          {/* Scene name */}
-          <p className="text-xs font-semibold text-white leading-tight line-clamp-1">
-            {scene.name}
-          </p>
-
-          {/* Visual description */}
-          <p className="text-[11px] text-white/50 leading-relaxed line-clamp-3">
-            {scene.visual_description}
-          </p>
-
-          {/* Badges */}
-          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-white/8">
-            <span className="flex items-center gap-1 text-[10px] text-white/40 bg-white/5 px-1.5 py-0.5 rounded-full border border-white/8">
-              <Clock className="h-2.5 w-2.5" />
-              {scene.duration_seconds}s
-            </span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${getEmotionColor(scene.emotion)}`}>
-              {scene.emotion}
-            </span>
-          </div>
-
-          {/* Camera */}
-          <div className="flex items-start gap-1 text-[10px] text-white/35">
-            <Camera className="h-2.5 w-2.5 mt-0.5 shrink-0" />
-            <span className="leading-tight line-clamp-2">{scene.camera_suggestion}</span>
-          </div>
-
-          {/* Video prompt */}
-          {scene.video_prompt && (
-            <div className="border-t border-white/8 pt-2">
-              <button
-                className="flex items-center justify-between w-full text-[10px] text-primary/80 hover:text-primary transition-colors"
-                onClick={() => setVideoExpanded(v => !v)}
-              >
-                <span className="flex items-center gap-1 font-medium">
-                  <Film className="h-2.5 w-2.5" />
-                  Prompt de Vídeo
-                </span>
-                {videoExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-              </button>
-              {videoExpanded && (
-                <div className="mt-1.5 bg-black/30 rounded-lg p-2 relative">
-                  <p className="text-[10px] font-mono text-white/50 leading-relaxed pr-5">
-                    {scene.video_prompt}
-                  </p>
-                  <button
-                    onClick={copyVideoPrompt}
-                    className="absolute top-1.5 right-1.5 p-0.5 text-white/30 hover:text-white/70 transition-colors"
-                    title="Copiar"
-                  >
-                    <Copy className="h-2.5 w-2.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <span className="flex items-center gap-1 text-[10px] text-white/40 font-mono">
+            <Clock className="h-2.5 w-2.5" />
+            {scene.duration_seconds}s
+          </span>
         </div>
       </div>
 
-      {/* Arrow between cards */}
-      {index < total - 1 && (
-        <div className="flex items-center self-center px-1 text-white/20 flex-shrink-0">
-          <svg width="28" height="12" viewBox="0 0 28 12" fill="none">
-            <path d="M0 6h22M22 6l-5-4M22 6l-5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+      {/* Body */}
+      <div className="px-4 py-3 space-y-3">
+        {/* Objective — read-only */}
+        {scene.objective && (
+          <p className="text-[11px] text-white/35 italic leading-relaxed border-l-2 border-white/10 pl-2">
+            {scene.objective}
+          </p>
+        )}
+
+        {/* Visual description */}
+        <div>
+          <label className="text-[9px] font-medium text-white/30 uppercase tracking-wider block mb-1">
+            Descrição Visual
+          </label>
+          <textarea
+            value={scene.visual_description}
+            onChange={e => onUpdate({ visual_description: e.target.value })}
+            rows={2}
+            className="w-full bg-white/5 border border-white/8 rounded-lg px-2.5 py-2 text-[11px] text-white/70 leading-relaxed resize-none outline-none focus:border-primary/40 transition-colors"
+          />
         </div>
-      )}
+
+        {/* Prompt base */}
+        <div>
+          <label className="text-[9px] font-medium text-white/30 uppercase tracking-wider block mb-1">
+            Prompt de Imagem
+          </label>
+          <textarea
+            value={scene.suggested_prompt_base}
+            onChange={e => onUpdate({ suggested_prompt_base: e.target.value })}
+            rows={2}
+            className="w-full bg-white/5 border border-white/8 rounded-lg px-2.5 py-2 text-[11px] text-white/70 font-mono leading-relaxed resize-none outline-none focus:border-primary/40 transition-colors"
+          />
+        </div>
+
+        {/* Camera badges */}
+        {(scene.preset_id || scene.focal_length || scene.camera_angle) && (
+          <div className="flex flex-wrap gap-1.5">
+            {[scene.preset_id, scene.focal_length, scene.camera_angle].filter(Boolean).map(v => (
+              <span key={v} className="text-[9px] px-1.5 py-0.5 rounded border border-white/10 text-white/30 bg-white/5">
+                {v}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Video prompt */}
+        {scene.video_prompt && (
+          <div className="border-t border-white/8 pt-2">
+            <button
+              className="flex items-center justify-between w-full text-[10px] text-primary/60 hover:text-primary/90 transition-colors"
+              onClick={() => setVideoExpanded(v => !v)}
+            >
+              <span className="flex items-center gap-1 font-medium">
+                <Film className="h-2.5 w-2.5" />
+                Prompt de Vídeo
+              </span>
+              {videoExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
+            </button>
+            {videoExpanded && (
+              <div className="mt-1.5 bg-black/30 rounded-lg p-2 relative">
+                <p className="text-[10px] font-mono text-white/40 leading-relaxed pr-6">{scene.video_prompt}</p>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(scene.video_prompt!); toast.success('Copiado!'); }}
+                  className="absolute top-1.5 right-1.5 p-0.5 text-white/20 hover:text-white/60 transition-colors"
+                >
+                  <Copy className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-export function AIDirectorPreview({ structure, onConfirm, onRegenerate, canRegenerate, isRegenerating }: AIDirectorPreviewProps) {
+export function AIDirectorPreview({
+  structure, onConfirm, onRegenerate, onStructureChange, canRegenerate, isRegenerating,
+}: AIDirectorPreviewProps) {
+  const [suggestions, setSuggestions] = useState('');
   const totalDuration = structure.scenes.reduce((acc, s) => acc + s.duration_seconds, 0);
+
+  const updateScene = (index: number, updates: Partial<GeneratedScene>) => {
+    const newScenes = [...structure.scenes];
+    newScenes[index] = { ...newScenes[index], ...updates };
+    onStructureChange({ ...structure, scenes: newScenes });
+  };
 
   return (
     <div className="flex flex-col" style={{ minHeight: 0 }}>
-      {/* Fixed header — title + concept */}
+      {/* Briefing */}
       <div className="px-5 pb-3 flex-shrink-0">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 space-y-1.5">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-sm text-white truncate">{structure.title}</h3>
-              <p className="text-xs text-white/50 mt-0.5 leading-relaxed">{structure.concept}</p>
-            </div>
-            <div className="flex-shrink-0 text-right">
+            <input
+              value={structure.title}
+              onChange={e => onStructureChange({ ...structure, title: e.target.value })}
+              className="flex-1 bg-transparent text-sm font-bold text-white border-none outline-none focus:bg-white/5 rounded px-1 py-0.5"
+            />
+            <div className="shrink-0 text-right">
               <p className="text-[10px] text-white/30">Total</p>
-              <p className="text-sm font-mono font-bold text-primary">{totalDuration}s</p>
+              <p className="text-sm font-mono font-bold text-primary">{totalDuration}s · {structure.scenes.length} cenas</p>
             </div>
           </div>
+          <textarea
+            value={structure.concept}
+            onChange={e => onStructureChange({ ...structure, concept: e.target.value })}
+            rows={2}
+            className="w-full bg-transparent text-xs text-white/50 border-none outline-none focus:bg-white/5 rounded px-1 py-0.5 resize-none leading-relaxed"
+          />
         </div>
       </div>
 
-      {/* Scrollable film strip — only this part scrolls */}
-      <div className="overflow-x-auto flex-shrink-0 px-5 pb-3" style={{ scrollbarWidth: 'thin' }}>
-        <div className="flex items-start gap-0 w-max py-1">
-          {structure.scenes.map((scene, i) => (
-            <SceneCard key={i} scene={scene} index={i} total={structure.scenes.length} />
-          ))}
-        </div>
-      </div>
-
-      {/* Dot indicators */}
-      <div className="flex items-center gap-1.5 justify-center pb-4 flex-shrink-0">
-        {structure.scenes.map((_, i) => (
-          <div key={i} className="h-1 w-6 rounded-full bg-primary/30" />
+      {/* Scene list */}
+      <div className="overflow-y-auto flex-1 px-5 space-y-2 pb-3" style={{ scrollbarWidth: 'thin' }}>
+        {structure.scenes.map((scene, i) => (
+          <SceneCard key={i} scene={scene} onUpdate={u => updateScene(i, u)} />
         ))}
       </div>
 
-      {/* Fixed footer — small centered buttons */}
+      {/* Suggestions */}
+      <div className="px-5 pb-3 flex-shrink-0">
+        <div className="rounded-xl border border-white/10 bg-neutral-900/60 p-3 space-y-2">
+          <label className="flex items-center gap-1.5 text-[10px] font-medium text-white/40 uppercase tracking-wider">
+            <Lightbulb className="h-3 w-3" />
+            Sugestões para regenerar
+          </label>
+          <Textarea
+            value={suggestions}
+            onChange={e => setSuggestions(e.target.value)}
+            placeholder="Ex: Quero que a cena 2 seja mais dramática, adicione uma cena de transição entre 3 e 4, tom mais épico no final..."
+            className="min-h-[60px] resize-none text-xs bg-white/5 border-white/10 text-white/70 placeholder:text-white/20 focus-visible:ring-primary/30"
+            rows={3}
+          />
+        </div>
+      </div>
+
+      {/* Footer */}
       <div className="px-5 pb-5 flex-shrink-0 flex items-center justify-center gap-2 border-t border-white/8 pt-4">
         <Button
           variant="outline"
           size="sm"
-          onClick={onRegenerate}
+          onClick={() => onRegenerate(suggestions.trim() || undefined)}
           disabled={!canRegenerate || isRegenerating}
           className="gap-1.5 text-xs"
         >
           {isRegenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Regenerar
+          {suggestions.trim() ? 'Regenerar com sugestões' : 'Regenerar'}
         </Button>
-        <Button
-          size="sm"
-          onClick={onConfirm}
-          className="gap-1.5 text-xs"
-        >
+        <Button size="sm" onClick={onConfirm} className="gap-1.5 text-xs">
           <Check className="h-3.5 w-3.5" />
           Criar {structure.scenes.length} cenas no canvas
         </Button>
