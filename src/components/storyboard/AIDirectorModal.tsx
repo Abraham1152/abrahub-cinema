@@ -154,7 +154,10 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
                 <SelectContent>
                   <SelectItem value="10s">10 segundos</SelectItem>
                   <SelectItem value="30s">30 segundos</SelectItem>
-                  <SelectItem value="60s">60 segundos</SelectItem>
+                  <SelectItem value="60s">1 minuto</SelectItem>
+                  <SelectItem value="90s">1m 30s</SelectItem>
+                  <SelectItem value="2min">2 minutos</SelectItem>
+                  <SelectItem value="3min">3 minutos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
