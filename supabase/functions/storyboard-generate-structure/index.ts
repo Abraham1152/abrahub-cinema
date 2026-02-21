@@ -109,7 +109,7 @@ ABERTURA disponível (use o valor exato em aperture):
 - "wide-shot" → ambiente, escala, contexto
 
 REGRAS:
-- Mínimo 3 cenas, máximo 8 cenas
+- Mínimo 3 cenas, máximo ${duration === '2min' || duration === '3min' ? 12 : 8} cenas
 - A soma das durações deve ser aproximadamente ${duration}
 - Cada cena deve ter uma função narrativa clara
 - Os prompts sugeridos devem ser em inglês e cinematográficos
@@ -151,7 +151,7 @@ Não escreva texto fora do JSON.`;
         contents: [{ role: "user", parts: [{ text: textPrompt }] }],
         generationConfig: {
           temperature: 0.8,
-          maxOutputTokens: 4096,
+          maxOutputTokens: 16384,
           responseMimeType: "application/json",
         },
       }),
@@ -194,9 +194,10 @@ Não escreva texto fora do JSON.`;
       });
     }
 
-    // Enforce max 8 scenes
-    if (structure.scenes && structure.scenes.length > 8) {
-      structure.scenes = structure.scenes.slice(0, 8);
+    // Enforce max scenes based on duration
+    const maxScenes = (duration === '2min' || duration === '3min') ? 12 : 8;
+    if (structure.scenes && structure.scenes.length > maxScenes) {
+      structure.scenes = structure.scenes.slice(0, maxScenes);
     }
 
     console.log(`[STRUCTURE] Generated ${structure.scenes?.length || 0} scenes for user ${user.id}`);
