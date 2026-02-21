@@ -69,9 +69,10 @@ const App = () => (
           {/* Pages with persistent shared header */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Index />} />
-            <Route path="/storyboard" element={<Storyboard />} />
             <Route path="/admin" element={<Admin />} />
           </Route>
+          {/* Full-screen pages — manage their own layout */}
+          <Route path="/storyboard" element={<Storyboard />} />
           {/* Pages without the shared header */}
           <Route path="/auth" element={<Auth />} />
           <Route path="/privacy" element={<Privacy />} />

@@ -6,6 +6,7 @@ import { StoryboardCanvas } from '@/components/storyboard/StoryboardCanvas';
 import { useCredits } from '@/hooks/useCredits';
 import { Button } from '@/components/ui/button';
 import { Plus, FolderOpen, Trash2, Loader2 } from 'lucide-react';
+import { Header } from '@/components/layout/Header';
 import { AIDirectorModal } from '@/components/storyboard/AIDirectorModal';
 import { AnimationBatchModal } from '@/components/storyboard/AnimationBatchModal';
 import { SendToStoryboardModal } from '@/components/storyboard/SendToStoryboardModal';
@@ -121,11 +122,14 @@ export default function Storyboard() {
   // No BYOK gate needed - Storyboard now uses the same Studio pipeline
 
   return (
-    <>
+    <div className="h-screen flex flex-col overflow-hidden bg-background">
+      {/* Shared header — owns the full 100vh with no external header adding height */}
+      <Header user={user} />
+
       {!currentProject ? (
-        // Project list view
-        <div className="min-h-screen flex flex-col bg-background">
-          <div className="flex-1 container max-w-2xl mx-auto px-4 py-12">
+        // Project list — scrollable content area within the remaining space
+        <div className="flex-1 min-h-0 overflow-auto">
+          <div className="container max-w-2xl mx-auto px-4 py-12">
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-2xl font-bold">Storyboard</h1>
@@ -180,9 +184,9 @@ export default function Storyboard() {
           </div>
         </div>
       ) : (
-        // Canvas view
-        <div className="h-screen flex flex-col bg-background">
-          <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-background">
+        // Canvas view — fills remaining space exactly, no page scroll
+        <>
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-background flex-shrink-0">
             <Button variant="ghost" size="sm" onClick={() => selectProject(null as any)}>
               ← Projetos
             </Button>
@@ -226,7 +230,7 @@ export default function Storyboard() {
             onClose={() => setAnimationBatchOpen(false)}
             scenes={scenes}
           />
-        </div>
+        </>
       )}
 
       {/* Modal: bridge from Studio — triggered by localStorage handoff */}
@@ -243,6 +247,6 @@ export default function Storyboard() {
           onSuccess={(projectId, sceneId) => handleSendToStoryboardSuccess(projectId)}
         />
       )}
-    </>
+    </div>
   );
 }
