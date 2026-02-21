@@ -191,7 +191,7 @@ export default function Storyboard() {
               onSave={(newTitle) => renameProject(currentProject.id, newTitle)}
             />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <StoryboardCanvas
               scenes={scenes}
               sceneImages={sceneImages}
