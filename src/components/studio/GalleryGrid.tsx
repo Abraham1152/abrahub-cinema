@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import type { PendingSceneImage } from '@/components/storyboard/SendToStoryboardModal';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -129,6 +131,19 @@ export function GalleryGrid({
   const [brokenIds, setBrokenIds] = useState<Set<string>>(new Set());
   const [splitModalItem, setSplitModalItem] = useState<GalleryItem | null>(null);
   const [splitting, setSplitting] = useState(false);
+
+  const navigate = useNavigate();
+
+  const handleSendToStoryboard = useCallback((item: GalleryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    localStorage.setItem('abrahub_pending_scene_image', JSON.stringify({
+      imageId: item.id,
+      imageUrl: item.masterUrl || item.url || '',
+      prompt: item.prompt,
+      sourceTimestamp: Date.now(),
+    } satisfies PendingSceneImage));
+    navigate('/storyboard');
+  }, [navigate]);
 
   const handleImageError = useCallback((item: GalleryItem) => {
     // Hide broken image immediately
@@ -506,9 +521,19 @@ export function GalleryGrid({
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
+                        {/* Send to Storyboard */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 bg-black/50 hover:bg-violet-600/80 text-white"
+                          onClick={(e) => handleSendToStoryboard(item, e)}
+                          title="Enviar para o Storyboard"
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           className="h-7 w-7 bg-black/50 hover:bg-black/70 text-white"
                         >
                           <Maximize2 className="h-3.5 w-3.5" />
@@ -651,6 +676,17 @@ export function GalleryGrid({
                           Download
                         </>
                       )}
+                    </Button>
+
+                    {/* Send to Storyboard */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-violet-600/10 border-violet-500/30 hover:bg-violet-600/20 text-violet-400 gap-1.5"
+                      onClick={(e) => handleSendToStoryboard(viewerItem, e)}
+                    >
+                      <Layers className="h-4 w-4" />
+                      Enviar ao Storyboard
                     </Button>
 
                     {/* Partir Grid button - only for Story6 images */}
