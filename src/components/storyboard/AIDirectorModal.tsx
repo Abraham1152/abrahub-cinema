@@ -53,8 +53,13 @@ export function AIDirectorModal({ open, onClose, onConfirm }: AIDirectorModalPro
       if (error) {
         let msg = 'Erro ao gerar estrutura';
         try {
-          const errorBody = await (error as any).context?.json();
-          msg = errorBody?.error || error.message || msg;
+          const raw = await (error as any).context?.text();
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            msg = parsed?.error || parsed?.message || msg;
+          } else {
+            msg = error.message || msg;
+          }
         } catch {
           msg = error.message || msg;
         }

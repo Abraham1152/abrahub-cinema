@@ -151,7 +151,7 @@ Não escreva texto fora do JSON.`;
         contents: [{ role: "user", parts: [{ text: textPrompt }] }],
         generationConfig: {
           temperature: 0.8,
-          maxOutputTokens: 16384,
+          maxOutputTokens: 8192,
           responseMimeType: "application/json",
         },
       }),
