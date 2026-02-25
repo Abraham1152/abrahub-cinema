@@ -531,7 +531,7 @@ export function SceneBlock({
         onSendToStudioAsGrid={viewerImage?.full ? () => {
           localStorage.setItem('abrahub_pending_grid_image', JSON.stringify({
             imageUrl: viewerImage.full,
-            prompt: viewerImage.prompt || '',
+            aspectRatio: scene.aspect_ratio || '16:9',
             sourceTimestamp: Date.now(),
           }));
           setViewerImage(null);

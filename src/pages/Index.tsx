@@ -141,19 +141,27 @@ export default function Index() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // Auto-queue grid generation from Storyboard (pending stored in localStorage)
+  // Auto-queue 6-image grid from Storyboard (pending stored in localStorage)
   useEffect(() => {
     if (!user?.id) return;
     const raw = localStorage.getItem('abrahub_pending_grid_image');
     if (!raw) return;
     localStorage.removeItem('abrahub_pending_grid_image');
-    let parsed: { imageUrl: string; prompt: string } | null = null;
+    let parsed: { imageUrl: string; aspectRatio?: string } | null = null;
     try { parsed = JSON.parse(raw); } catch { return; }
     if (!parsed?.imageUrl) return;
-    const { imageUrl, prompt } = parsed;
+    const { imageUrl, aspectRatio: srcRatio } = parsed;
+
+    const GRID_PROMPT =
+      'Reproduce this image exactly. Identical composition, subject, lighting, ' +
+      'color palette, background, mood, and framing. No changes to scene or style. ' +
+      'Ultra-sharp, highly detailed, photorealistic.';
+    const ratio = srcRatio || '16:9';
+    const GRID_SIZE = 6;
+
     (async () => {
       try {
-        toast.info('Preparando Grid do Storyboard...');
+        toast.info('Preparando 6 variações...');
         const response = await fetch(imageUrl);
         const blob = await response.blob();
         const base64 = await new Promise<string>((resolve, reject) => {
@@ -162,50 +170,74 @@ export default function Index() {
           reader.onerror = () => reject(new Error('Falha ao ler imagem'));
           reader.readAsDataURL(blob);
         });
-        const tempId = `temp-grid-${Date.now()}`;
+
         const createdAt = new Date().toISOString();
+        const tempIds = Array.from({ length: GRID_SIZE }, (_, i) =>
+          `temp-grid-${Date.now()}-${i}`
+        );
+
+        // Create 6 optimistic cards immediately
         setGalleryMap(prev => {
           const newMap = new Map(prev);
-          newMap.set(tempId, {
-            id: tempId,
-            type: 'image',
-            url: undefined,
-            prompt: prompt || 'Grid do Storyboard',
-            model: 'gemini-2.0-flash-exp',
-            modelLabel: 'Grid • Processando...',
-            status: 'pending',
-            createdAt,
-            creditsCost: 0,
-            is_story6: true,
+          tempIds.forEach((tempId, i) => {
+            newMap.set(tempId, {
+              id: tempId, type: 'image', url: undefined,
+              prompt: GRID_PROMPT,
+              model: 'gemini-2.0-flash-exp',
+              modelLabel: `Variação ${i + 1}/6 • Processando...`,
+              status: 'pending', createdAt, creditsCost: 0,
+            });
+            optimisticQueueIdsRef.current.add(tempId);
           });
           return newMap;
         });
-        optimisticQueueIdsRef.current.add(tempId);
-        const result = await queueGeneration({
-          prompt: prompt || 'Grid do Storyboard',
-          aspectRatio: '16:9',
-          quality: '2K',
-          presetId: selectedPreset,
-          focalLength: selectedFocalLength,
-          aperture: selectedAperture,
-          referenceImages: [base64],
-          useOwnKey: true,
-          storyboard6Mode: true,
-        });
-        if (result?.success && result?.queueId) {
-          setGalleryMap(prev => {
-            const newMap = new Map(prev);
-            const item = newMap.get(tempId);
-            if (item) {
+
+        // Queue all 6 in parallel
+        const results = await Promise.allSettled(
+          tempIds.map(() =>
+            queueGeneration({
+              prompt: GRID_PROMPT,
+              aspectRatio: ratio,
+              quality: '2K',
+              presetId: selectedPreset,
+              focalLength: selectedFocalLength,
+              aperture: selectedAperture,
+              referenceImages: [base64],
+              useOwnKey: true,
+            })
+          )
+        );
+
+        let ok = 0;
+        results.forEach((res, i) => {
+          const tempId = tempIds[i];
+          if (res.status === 'fulfilled' && res.value?.success && res.value?.queueId) {
+            const queueId = res.value.queueId;
+            setGalleryMap(prev => {
+              const newMap = new Map(prev);
+              const item = newMap.get(tempId);
+              if (item) {
+                newMap.delete(tempId);
+                optimisticQueueIdsRef.current.delete(tempId);
+                newMap.set(queueId, { ...item, id: queueId, status: 'generating' });
+                optimisticQueueIdsRef.current.add(queueId);
+              }
+              return newMap;
+            });
+            ok++;
+          } else {
+            // Remove failed card
+            setGalleryMap(prev => {
+              const newMap = new Map(prev);
               newMap.delete(tempId);
               optimisticQueueIdsRef.current.delete(tempId);
-              newMap.set(result.queueId, { ...item, id: result.queueId, status: 'generating' });
-              optimisticQueueIdsRef.current.add(result.queueId);
-            }
-            return newMap;
-          });
-          toast.success('Grid adicionado à fila!');
-        }
+              return newMap;
+            });
+          }
+        });
+
+        if (ok > 0) toast.success(`${ok} variações adicionadas à fila!`);
+        else toast.error('Erro ao enfileirar variações');
       } catch (err) {
         console.error('[PendingGrid]', err);
         toast.error('Erro ao processar Grid do Storyboard');
