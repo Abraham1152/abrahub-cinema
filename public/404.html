@@ -3,18 +3,45 @@
 <head>
   <meta charset="utf-8">
   <title>ABRAhub Cinema</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #fff;
+    }
+    .loader {
+      text-align: center;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
   <script>
-    // GitHub Pages SPA redirect: preserves the path + hash for the SPA router
-    // This handles Supabase auth redirects that land on non-existent paths
-    var pathSegmentsToKeep = 0;
-    var l = window.location;
-    l.replace(
-      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-      l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/' +
-      (l.hash || '') +
-      (l.search ? '&__search=' + l.search.slice(1) : '')
-    );
+    (function() {
+      var loc = window.location;
+      var url = loc.protocol + '//' + loc.host + '/' +
+        (loc.hash || '') +
+        (loc.search ? (loc.hash ? '' : '#') + '?__from=' + encodeURIComponent(loc.pathname) + '&' + loc.search.slice(1) : '');
+      window.location.replace(url);
+    })();
   </script>
 </head>
-<body></body>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <p>Carregando...</p>
+  </div>
+</body>
 </html>
