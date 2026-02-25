@@ -647,14 +647,9 @@ export default function Index() {
     return () => clearInterval(pollInterval);
   }, [galleryItems, user?.id]);
 
-  const GRID_DEFAULT_PROMPT =
-    'Create a single composite image divided into a 2-column × 3-row grid. ' +
-    'Each of the 6 panels shows the exact same scene from a different camera angle, ' +
-    'maintaining identical lighting, color palette, atmosphere, and subject throughout. ' +
-    'Panel layout: (1) wide establishing shot — front, (2) medium shot — slightly elevated, ' +
-    "(3) close-up detail — front, (4) low angle — looking up, " +
-    "(5) bird's eye view — top-down, (6) side profile — lateral view. " +
-    'Clean panel borders, consistent proportions, no text, no labels.';
+  // Grid mode: the edge function injects all layout/angle instructions automatically.
+  // This default prompt is only used when the user provides no text — it can be blank.
+  const GRID_DEFAULT_PROMPT = '';
 
   // RULE 1: handleGenerate is the ONLY place that creates GalleryItems
   // Batch size 1-4 supported - each generates exactly 1 card
