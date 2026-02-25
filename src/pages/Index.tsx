@@ -72,8 +72,38 @@ export default function Index() {
   // Track queue ID -> image ID mapping (for bridging optimistic items to real results)
   const queueToImageMapRef = useRef<Map<string, string>>(new Map());
 
+  // Track pending character sheet generation (auto-loads into references when ready)
+  const pendingCharacterQueueIdRef = useRef<string | null>(null);
+
   // No longer using credits system - all users use their own API Key
   const totalCreditCost = 0;
+
+  // Watch for pending character sheet to finish → auto-load as reference
+  useEffect(() => {
+    const pendingId = pendingCharacterQueueIdRef.current;
+    if (!pendingId) return;
+    const item = galleryMap.get(pendingId);
+    if (!item || item.status !== 'ready') return;
+    const imageUrl = item.masterUrl || item.url;
+    if (!imageUrl) return;
+    pendingCharacterQueueIdRef.current = null;
+    (async () => {
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('Falha ao ler imagem'));
+          reader.readAsDataURL(blob);
+        });
+        setReferenceImages(prev => [...prev.slice(-2), base64]);
+        toast.success('Personagem criado! Carregado nas referências.');
+      } catch {
+        toast.error('Erro ao carregar personagem nas referências');
+      }
+    })();
+  }, [galleryMap]);
 
   // Convert Map to sorted array for rendering (with optional filter)
   const galleryItems = useMemo(() => {
@@ -953,6 +983,84 @@ export default function Index() {
     }
   };
 
+  const CHARACTER_SHEET_PROMPT = `Create a full professional character sheet of the same person.
+
+Maintain identical facial features, hairstyle, skin texture, and clothing.
+
+Generate the following views in a clean studio setting with neutral soft lighting and a plain light background:
+
+1. Full body – front view
+2. Full body – left profile
+3. Full body – right profile
+4. Full body – back view
+5. Close-up – front portrait
+6. Close-up – left profile
+7. Close-up – right profile
+
+Neutral expression. Arms relaxed at sides. No stylization. No dramatic lighting. No pose changes. No outfit changes.
+
+Highly detailed, sharp focus, consistent proportions across all views.`;
+
+  const handleCreateCharacterSheet = async (item: GalleryItem) => {
+    const imageUrl = item.masterUrl || item.url;
+    if (!imageUrl) return;
+    try {
+      toast.info('Preparando personagem...');
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Falha ao ler imagem'));
+        reader.readAsDataURL(blob);
+      });
+
+      const tempId = `temp-char-${Date.now()}`;
+      const createdAt = new Date().toISOString();
+      setGalleryMap(prev => {
+        const newMap = new Map(prev);
+        newMap.set(tempId, {
+          id: tempId, type: 'image', url: undefined,
+          prompt: CHARACTER_SHEET_PROMPT,
+          model: 'gemini-2.0-flash-exp',
+          modelLabel: 'Personagem • Processando...',
+          status: 'pending', createdAt, creditsCost: 0,
+        });
+        return newMap;
+      });
+      optimisticQueueIdsRef.current.add(tempId);
+
+      const result = await queueGeneration({
+        prompt: CHARACTER_SHEET_PROMPT,
+        aspectRatio: '16:9',
+        quality: '2K',
+        presetId: selectedPreset,
+        focalLength: selectedFocalLength,
+        aperture: selectedAperture,
+        referenceImages: [base64],
+        useOwnKey: true,
+      });
+
+      if (result?.success && result?.queueId) {
+        setGalleryMap(prev => {
+          const newMap = new Map(prev);
+          const tempItem = newMap.get(tempId);
+          if (tempItem) {
+            newMap.delete(tempId);
+            optimisticQueueIdsRef.current.delete(tempId);
+            newMap.set(result.queueId, { ...tempItem, id: result.queueId, status: 'generating' });
+            optimisticQueueIdsRef.current.add(result.queueId);
+          }
+          return newMap;
+        });
+        pendingCharacterQueueIdRef.current = result.queueId;
+        toast.success('Gerando personagem... será carregado nas referências ao concluir.');
+      }
+    } catch {
+      toast.error('Erro ao criar personagem');
+    }
+  };
+
   // Handle edit (create variation) - loads image as reference and converts to base64
   const handleEdit = async (item: GalleryItem) => {
     if (!item.url && !item.masterUrl) {
@@ -1044,6 +1152,7 @@ export default function Index() {
               onRetry={handleRetry}
               onEdit={handleEdit}
               onAddAsReference={handleAddAsReference}
+              onCreateCharacterSheet={handleCreateCharacterSheet}
               onToggleLike={handleToggleLike}
               onRefresh={fetchGalleryItems}
               emptyMessage={showOnlyLiked ? "Nenhuma imagem curtida ainda" : "Suas fotos cinematográficas aparecerão aqui"}

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight, Layers, Plus } from 'lucide-react';
+import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight, Layers, Plus, UserRound } from 'lucide-react';
 import type { PendingSceneImage } from '@/components/storyboard/SendToStoryboardModal';
 import { Button } from '@/components/ui/button';
 import {
@@ -102,6 +102,7 @@ interface GalleryGridProps {
   setGalleryMap?: React.Dispatch<React.SetStateAction<Map<string, GalleryItem>>>;
   optimisticQueueIdsRef?: React.MutableRefObject<Set<string>>;
   onAddAsReference?: (item: GalleryItem) => void;
+  onCreateCharacterSheet?: (item: GalleryItem) => void;
 }
 
 // Truncate prompt to first ~40 chars
@@ -126,6 +127,7 @@ export function GalleryGrid({
   setGalleryMap,
   optimisticQueueIdsRef,
   onAddAsReference,
+  onCreateCharacterSheet,
 }: GalleryGridProps) {
   const [viewerItem, setViewerItem] = useState<GalleryItem | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number>(-1);
@@ -664,6 +666,17 @@ export function GalleryGrid({
                       >
                         <Plus className="h-4 w-4" />
                         Usar como referência
+                      </Button>
+                    )}
+                    {onCreateCharacterSheet && viewerItem.status === 'ready' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-amber-600/10 border-amber-500/30 hover:bg-amber-600/20 text-amber-400 gap-1.5"
+                        onClick={() => { onCreateCharacterSheet(viewerItem); setViewerItem(null); }}
+                      >
+                        <UserRound className="h-4 w-4" />
+                        Criar personagem
                       </Button>
                     )}
                     <Button
