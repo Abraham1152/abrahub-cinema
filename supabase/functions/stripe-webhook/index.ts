@@ -131,9 +131,10 @@ function resolvePlanAndStatus(subscription: Stripe.Subscription): {
   const credits = getCreditsForTier(tier);
 
   // Determine plan: proplus, pro, or free
+  // Note: 'community' tier maps to 'proplus' in DB (entitlements_plan_check only allows free/pro/proplus)
   let plan: "free" | "pro" | "proplus" = "free";
   if (isPaid && isActive && !isDowngrading) {
-    plan = tier as "pro" | "proplus";
+    plan = (tier === "pro") ? "pro" : "proplus";
   }
 
   return {
@@ -604,7 +605,7 @@ async function handleSubscriptionChange(
       }
     }
   } catch (err) {
-    logStep("ERROR: Stripe API retrieve failed. Check your STRIPE_SECRET_KEY.", { error: err.message });
+    logStep("ERROR: Stripe API retrieve failed. Check your STRIPE_SECRET_KEY.", { error: err instanceof Error ? err.message : String(err) });
   }
 
   if (customerEmail) {
@@ -664,20 +665,22 @@ async function handleSubscriptionChange(
       
       if (tierDowngraded) {
         // Update entitlements with new tier
+        // Map to DB-safe values (entitlements_plan_check: free/pro/proplus)
+        const downgradedPlan: "pro" | "proplus" = tier === "pro" ? "pro" : "proplus";
         await supabase.from("entitlements").upsert({
           user_id: user.userId,
           stripe_customer_id: stripeCustomerId,
           stripe_subscription_id: subscription.id,
-          plan: tier, // 'pro' after downgrade
+          plan: downgradedPlan,
           status: "active",
           current_period_end: currentPeriodEnd,
           updated_at: nowISO(),
         });
-        
+
         // Update subscriptions table for backward compatibility
         await supabase.from("subscriptions").upsert({
           user_id: user.userId,
-          plan: tier,
+          plan: downgradedPlan,
           status: "active",
           stripe_customer_id: stripeCustomerId,
           stripe_subscription_id: subscription.id,
@@ -726,7 +729,9 @@ async function handleSubscriptionChange(
       if (!alreadyRecordedDowngrade) {
         // Update entitlements: KEEP current plan during grace period, set grace_until = period_end
         // Plan will transition to 'free' when cleanup-expired-credits runs after grace_until
-        const gracePlan = previousTier || tier || "pro";
+        // Map to DB-safe values only (entitlements_plan_check: free/pro/proplus)
+        const gracePlan: "free" | "pro" | "proplus" =
+          (previousTier === "pro" || (!previousTier && tier === "pro")) ? "pro" : "proplus";
         const { error: entError } = await supabase.from("entitlements").upsert({
           user_id: user.userId,
           stripe_customer_id: stripeCustomerId,
@@ -787,13 +792,19 @@ async function handleSubscriptionChange(
     }
 
     // Normal flow (not downgrading)
+    // Map Stripe status to entitlements internal status (entitlements_status_check only allows active/inactive/trialing)
+    const entitlementsStatus: "active" | "inactive" | "trialing" =
+      status === "trialing" ? "trialing"
+      : ["active"].includes(status) ? "active"
+      : "inactive";
+
     // Upsert entitlements
     const { error: entError } = await supabase.from("entitlements").upsert({
       user_id: user.userId,
       stripe_customer_id: stripeCustomerId,
       stripe_subscription_id: subscription.id,
       plan,
-      status,
+      status: entitlementsStatus,
       current_period_end: currentPeriodEnd,
       // Clear grace fields if reactivating paid subscription
       grace_until: isPaidNow ? null : undefined,
@@ -845,9 +856,9 @@ async function handleSubscriptionChange(
           updated_at: nowISO(),
         });
       } else {
-        logStep("Subscription activation already granted (idempotent)", { 
-          userId: user.userId, 
-          subscriptionId: subscription.id 
+        logStep("Subscription activation already granted (idempotent)", {
+          userId: user.userId,
+          subscriptionId: subscription.id
         });
       }
     } else {
@@ -857,6 +868,16 @@ async function handleSubscriptionChange(
         monthly_allowance: monthlyAllowance,
         updated_at: nowISO(),
       }, { onConflict: "user_id", ignoreDuplicates: false });
+    }
+
+    // Always sync monthly_allowance for active paid plans (fixes idempotency gap where
+    // alreadyGranted=true skips the full upsert, leaving monthly_allowance at 0)
+    if (isPaidNow) {
+      await supabase.from("credit_wallet").update({
+        monthly_allowance: credits,
+        updated_at: nowISO(),
+      }).eq("user_id", user.userId);
+      logStep("monthly_allowance synced", { userId: user.userId, credits });
     }
 
     // Also update stripe_customers mapping
@@ -1197,15 +1218,19 @@ async function handleInvoicePaid(
     return;
   }
 
-  // Determine credits based on plan
-  const refillCredits = entitlements.plan === "proplus" ? PRO_PLUS_CREDITS : PRO_CREDITS;
-
-  // Check idempotency - don't refill if already refilled for this invoice
+  // Check idempotency + get monthly_allowance (source of truth for community vs proplus)
   const { data: wallet } = await supabase
     .from("credit_wallet")
-    .select("last_refill_invoice_id")
+    .select("last_refill_invoice_id, monthly_allowance")
     .eq("user_id", user.userId)
     .single();
+
+  // Use monthly_allowance as refill amount — it correctly reflects 999999 for community
+  // and 10/100 for pro/proplus. Fall back to plan-based if not set.
+  const planBasedCredits = entitlements.plan === "proplus" ? PRO_PLUS_CREDITS : PRO_CREDITS;
+  const refillCredits = (wallet?.monthly_allowance && wallet.monthly_allowance > 0)
+    ? wallet.monthly_allowance
+    : planBasedCredits;
 
   if (wallet?.last_refill_invoice_id === invoice.id) {
     logStep("Already refilled for this invoice (idempotent)", { invoiceId: invoice.id });

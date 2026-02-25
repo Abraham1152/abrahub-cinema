@@ -44,3 +44,18 @@ verify_jwt = false
 
 [functions.validate-api-key]
 verify_jwt = false
+
+[functions.storyboard-generate-structure]
+verify_jwt = false
+
+[functions.storyboard-generate-image]
+verify_jwt = false
+
+[functions.storyboard-generate-prompt]
+verify_jwt = false
+
+[functions.storyboard-generate-animation-batch]
+verify_jwt = false
+
+[functions.storyboard-animation-prompts]
+verify_jwt = false
