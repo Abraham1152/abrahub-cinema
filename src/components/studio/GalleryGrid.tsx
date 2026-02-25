@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { Download, Maximize2, Trash2, Loader2, AlertCircle, Clock, Image as ImageIcon, Film, XCircle, Info, RotateCcw, Heart, Pencil, ShieldAlert, Grid3X3, ChevronLeft, ChevronRight, Layers, Plus } from 'lucide-react';
 import type { PendingSceneImage } from '@/components/storyboard/SendToStoryboardModal';
 import { Button } from '@/components/ui/button';
 import {
@@ -101,6 +101,7 @@ interface GalleryGridProps {
   isPro?: boolean;
   setGalleryMap?: React.Dispatch<React.SetStateAction<Map<string, GalleryItem>>>;
   optimisticQueueIdsRef?: React.MutableRefObject<Set<string>>;
+  onAddAsReference?: (item: GalleryItem) => void;
 }
 
 // Truncate prompt to first ~40 chars
@@ -123,7 +124,8 @@ export function GalleryGrid({
   expirationDays = 30,
   isPro = false,
   setGalleryMap,
-  optimisticQueueIdsRef
+  optimisticQueueIdsRef,
+  onAddAsReference,
 }: GalleryGridProps) {
   const [viewerItem, setViewerItem] = useState<GalleryItem | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number>(-1);
@@ -653,8 +655,19 @@ export function GalleryGrid({
                   
                   {/* Action buttons */}
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
+                    {onAddAsReference && viewerItem.status === 'ready' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-green-600/10 border-green-500/30 hover:bg-green-600/20 text-green-400 gap-1.5"
+                        onClick={() => { onAddAsReference(viewerItem); setViewerItem(null); }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Usar como referência
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
                       size="sm"
                       className="bg-white/5 border-white/10 hover:bg-white/10 text-white"
                       disabled={downloading}

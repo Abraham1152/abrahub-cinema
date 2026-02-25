@@ -932,6 +932,27 @@ export default function Index() {
     }
   };
 
+  // Add gallery image as reference in the generation form
+  const handleAddAsReference = async (item: GalleryItem) => {
+    const imageUrl = item.masterUrl || item.url;
+    if (!imageUrl) return;
+    try {
+      toast.info('Carregando como referência...');
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Falha ao ler imagem'));
+        reader.readAsDataURL(blob);
+      });
+      setReferenceImages(prev => [...prev.slice(-2), base64]); // max 3 refs
+      toast.success('Imagem adicionada como referência!');
+    } catch {
+      toast.error('Erro ao carregar referência');
+    }
+  };
+
   // Handle edit (create variation) - loads image as reference and converts to base64
   const handleEdit = async (item: GalleryItem) => {
     if (!item.url && !item.masterUrl) {
@@ -1022,6 +1043,7 @@ export default function Index() {
               onCancelQueue={handleCancelQueue}
               onRetry={handleRetry}
               onEdit={handleEdit}
+              onAddAsReference={handleAddAsReference}
               onToggleLike={handleToggleLike}
               onRefresh={fetchGalleryItems}
               emptyMessage={showOnlyLiked ? "Nenhuma imagem curtida ainda" : "Suas fotos cinematográficas aparecerão aqui"}
