@@ -320,11 +320,12 @@ export function RealismFloatingBar({
                 onChange={(e) => onPromptChange(e.target.value)} 
                 placeholder="Cole uma imagem (Ctrl+V) ou descreva a cena..." 
                 className="min-h-[48px] max-h-[100px] resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm text-white/90 placeholder:text-white/40 p-0" 
-                onKeyDown={(e) => { 
-                  if (e.key === 'Enter' && !e.shiftKey) { 
-                    e.preventDefault(); 
-                    if (!isGenerating && prompt.trim()) onGenerate(); 
-                  } 
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const canGenerate = prompt.trim() || (storyboard6Mode && referenceImages.length > 0);
+                    if (!isGenerating && canGenerate) onGenerate();
+                  }
                 }}
                 onPaste={handlePaste}
               />
@@ -499,7 +500,7 @@ export function RealismFloatingBar({
               {/* Generate button */}
               <Button 
                 onClick={onGenerate} 
-                disabled={isGenerating || !prompt.trim()} 
+                disabled={isGenerating || (!prompt.trim() && !(storyboard6Mode && referenceImages.length > 0))}
                 className="shrink-0 bg-[#CCFF00] text-black hover:bg-[#DFFF33] font-black px-8 h-12 rounded-xl text-lg shadow-[0_0_20px_rgba(204,255,0,0.4)] transition-all active:scale-95"
               >
                 {isGenerating ? (

@@ -647,11 +647,21 @@ export default function Index() {
     return () => clearInterval(pollInterval);
   }, [galleryItems, user?.id]);
 
+  const GRID_DEFAULT_PROMPT =
+    'Create a single composite image divided into a 2-column × 3-row grid. ' +
+    'Each of the 6 panels shows the exact same scene from a different camera angle, ' +
+    'maintaining identical lighting, color palette, atmosphere, and subject throughout. ' +
+    'Panel layout: (1) wide establishing shot — front, (2) medium shot — slightly elevated, ' +
+    "(3) close-up detail — front, (4) low angle — looking up, " +
+    "(5) bird's eye view — top-down, (6) side profile — lateral view. " +
+    'Clean panel borders, consistent proportions, no text, no labels.';
+
   // RULE 1: handleGenerate is the ONLY place that creates GalleryItems
   // Batch size 1-4 supported - each generates exactly 1 card
   // CONCURRENT GENERATIONS: User can trigger multiple generations without waiting
   const handleGenerate = async () => {
-    if (!prompt.trim()) {
+    const isGridWithRef = storyboard6Mode && referenceImages.length > 0;
+    if (!prompt.trim() && !isGridWithRef) {
       toast.error('Digite uma descrição da cena');
       return;
     }
@@ -664,7 +674,8 @@ export default function Index() {
     const currentStoryboard6Mode = storyboard6Mode;
 
     // Capture current values BEFORE clearing
-    const currentPrompt = prompt;
+    // Grid mode with no text → inject default multi-angle prompt
+    const currentPrompt = (isGridWithRef && !prompt.trim()) ? GRID_DEFAULT_PROMPT : prompt;
     const currentBatchSize = batchSize;
     const currentAspectRatio = aspectRatio;
     const currentQuality = quality;
