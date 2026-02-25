@@ -17,6 +17,14 @@ import { isExpired } from '@/lib/image-utils';
 export default function Index() {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+
+  // Force password setup before accessing the platform
+  useEffect(() => {
+    if (!authLoading && user?.user_metadata?.needs_password_setup) {
+      localStorage.setItem('abrahub_setup_pending', 'true');
+      navigate('/auth');
+    }
+  }, [user, authLoading, navigate]);
   const { credits, refetch: refetchCredits } = useCredits(user?.id);
   const { activeItems, queueGeneration, isLoading: isQueueLoading, refetch: refetchQueue } = useGenerationQueue(user?.id);
 

@@ -76,6 +76,10 @@ export default function Auth() {
   }, [session, loading, navigate]);
 
   const handleCloseModal = () => {
+    // Don't allow closing if user still needs to set up password
+    if (session?.user?.user_metadata?.needs_password_setup) {
+      return;
+    }
     setShowFirstAccessModal(false);
     setSetupStep('email');
     setSetupEmail('');
