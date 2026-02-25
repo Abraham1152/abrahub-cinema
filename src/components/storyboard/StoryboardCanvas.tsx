@@ -54,7 +54,10 @@ export function StoryboardCanvas({
     mouseY: number;
   } | null>(null);
 
-  // Scene position
+  // Live drag offset — updated on every mousemove so SVG lines follow the card
+  const [liveDrag, setLiveDrag] = useState<{ sceneId: string; dx: number; dy: number } | null>(null);
+
+  // Scene position (static — used for card placement only, no liveDrag)
   const getScenePosition = useCallback((scene: StoryboardScene) => {
     if (scene.position_x !== 0 || scene.position_y !== 0) {
       return { x: scene.position_x, y: scene.position_y };
@@ -70,17 +73,20 @@ export function StoryboardCanvas({
     return () => clearTimeout(t);
   }, [zoom, pan.x, pan.y]);
 
-  // Get the output port position (right side) of a scene in canvas coords
+  // Port positions include live drag offset so SVG lines track the card in real-time
   const getOutputPort = useCallback((scene: StoryboardScene) => {
     const pos = getScenePosition(scene);
-    return { x: pos.x + SCENE_WIDTH, y: pos.y + SCENE_HEADER_HEIGHT };
-  }, [getScenePosition]);
+    const dx = liveDrag?.sceneId === scene.id ? liveDrag.dx : 0;
+    const dy = liveDrag?.sceneId === scene.id ? liveDrag.dy : 0;
+    return { x: pos.x + dx + SCENE_WIDTH, y: pos.y + dy + SCENE_HEADER_HEIGHT };
+  }, [getScenePosition, liveDrag]);
 
-  // Get the input port position (left side) of a scene in canvas coords
   const getInputPort = useCallback((scene: StoryboardScene) => {
     const pos = getScenePosition(scene);
-    return { x: pos.x, y: pos.y + SCENE_HEADER_HEIGHT };
-  }, [getScenePosition]);
+    const dx = liveDrag?.sceneId === scene.id ? liveDrag.dx : 0;
+    const dy = liveDrag?.sceneId === scene.id ? liveDrag.dy : 0;
+    return { x: pos.x + dx, y: pos.y + dy + SCENE_HEADER_HEIGHT };
+  }, [getScenePosition, liveDrag]);
 
   // Convert client coords to canvas coords
   const clientToCanvas = useCallback((clientX: number, clientY: number) => {
@@ -388,6 +394,8 @@ export function StoryboardCanvas({
                   onDropConnection={handleConnectionDrop}
                   isDraggingConnection={!!draggingConnection}
                   draggingFromId={draggingConnection?.fromSceneId || null}
+                  onDragProgress={(id, dx, dy) => setLiveDrag({ sceneId: id, dx, dy })}
+                  onDragEnd={() => setLiveDrag(null)}
                 />
               </div>
             );

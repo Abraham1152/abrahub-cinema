@@ -45,6 +45,9 @@ interface SceneBlockProps {
   onDropConnection: (toSceneId: string) => void;
   isDraggingConnection: boolean;
   draggingFromId: string | null;
+  // Live drag callbacks so Canvas can update SVG lines in real-time
+  onDragProgress?: (id: string, dx: number, dy: number) => void;
+  onDragEnd?: () => void;
 }
 
 // Read-only video prompt section with copy button
@@ -95,6 +98,7 @@ export function SceneBlock({
   onGenerateImage, onSetPrimary, onRemoveImage, onUploadFileAsReference,
   onCreateFromScene,
   onStartConnectionDrag, onDropConnection, isDraggingConnection, draggingFromId,
+  onDragProgress, onDragEnd,
 }: SceneBlockProps) {
   const navigate = useNavigate();
   const [localPrompt, setLocalPrompt] = useState(scene.prompt_base || '');
@@ -141,6 +145,8 @@ export function SceneBlock({
       const dy = (ev.clientY - dragRef.current.startY) / zoom;
       // GPU-accelerated visual feedback — no React re-renders, no DB calls
       wrapperEl.style.transform = `translate(${dx}px, ${dy}px)`;
+      // Notify Canvas so SVG connection lines follow in real-time
+      onDragProgress?.(scene.id, dx, dy);
     };
     const handleMouseUp = (ev: MouseEvent) => {
       if (dragRef.current) {
@@ -156,6 +162,8 @@ export function SceneBlock({
         document.body.style.cursor = '';
         // Single state + DB persist on drop
         onUpdate(scene.id, { position_x: dragRef.current.origX + dx, position_y: dragRef.current.origY + dy });
+        // Clear live drag offset
+        onDragEnd?.();
       }
       dragRef.current = null;
       window.removeEventListener('mousemove', handleMouseMove);
@@ -163,7 +171,7 @@ export function SceneBlock({
     };
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  }, [scene.id, scene.position_x, scene.position_y, computedPosition, zoom, onUpdate, isDraggable]);
+  }, [scene.id, scene.position_x, scene.position_y, computedPosition, zoom, onUpdate, isDraggable, onDragProgress, onDragEnd]);
 
   const generatedImages = images.filter(i => i.role !== 'inherited');
   const inheritedImages = images.filter(i => i.role === 'inherited');
