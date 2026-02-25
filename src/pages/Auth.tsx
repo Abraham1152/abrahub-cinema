@@ -77,7 +77,8 @@ export default function Auth() {
 
   const handleCloseModal = () => {
     // Don't allow closing if user still needs to set up password
-    if (session?.user?.user_metadata?.needs_password_setup) {
+    // Check both the metadata flag AND the setup step (if we're in password step, don't close)
+    if (session?.user?.user_metadata?.needs_password_setup || setupStep === 'password') {
       return;
     }
     setShowFirstAccessModal(false);

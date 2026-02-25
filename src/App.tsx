@@ -36,7 +36,10 @@ function SetupGuard() {
   useEffect(() => {
     // Capture hash BEFORE any navigation clears it
     // Supabase appends #access_token=...&type=magiclink after OTP verification
-    const isMagicLink = window.location.hash.includes('type=magiclink');
+    const fullHash = window.location.hash;
+    const isMagicLink = fullHash.includes('type=magiclink') || fullHash.includes('type=recovery');
+    // Also check query string (some Supabase flows use ?token=)
+    const isMagicLinkQuery = window.location.search.includes('type=magiclink');
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Handle both SIGNED_IN and INITIAL_SESSION — SIGNED_IN can fire before
@@ -45,7 +48,12 @@ function SetupGuard() {
         const pendingSetup = localStorage.getItem('abrahub_setup_pending');
         const needsPasswordSetup = session.user?.user_metadata?.needs_password_setup;
 
-        if (pendingSetup === 'true' || needsPasswordSetup || isMagicLink) {
+        // Check if user has ever set a password (no password hash = needs setup)
+        // For users created by webhook, needs_password_setup is true
+        // For magic link users, force setup if coming from magic link
+        const needsSetup = pendingSetup === 'true' || needsPasswordSetup || isMagicLink || isMagicLinkQuery;
+
+        if (needsSetup) {
           // Ensure flag is set so Auth.tsx can detect it after navigation
           localStorage.setItem('abrahub_setup_pending', 'true');
           navigate('/auth');

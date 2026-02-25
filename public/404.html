@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ABRAhub Cinema</title>
+  <script>
+    // GitHub Pages SPA redirect: preserves the path + hash for the SPA router
+    // This handles Supabase auth redirects that land on non-existent paths
+    var pathSegmentsToKeep = 0;
+    var l = window.location;
+    l.replace(
+      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+      l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/' +
+      (l.hash || '') +
+      (l.search ? '&__search=' + l.search.slice(1) : '')
+    );
+  </script>
+</head>
+<body></body>
+</html>
