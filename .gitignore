@@ -59,3 +59,7 @@ Thumbs.db
 .gemini/
 
 .env.backup*
+
+# Agent tooling (full ignore)
+.aios-core/
+.claude/
