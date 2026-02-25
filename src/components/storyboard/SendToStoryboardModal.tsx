@@ -89,7 +89,10 @@ export function SendToStoryboardModal({
       const loadedScenes = (scenesData as StoryboardScene[]) || [];
       setScenes(loadedScenes);
 
-      if (loadedScenes.length > 0) {
+      if (loadedScenes.length === 0) {
+        // No scenes — auto-select sentinel so Confirm is enabled
+        setSelectedSceneId('__new__');
+      } else {
         const ids = loadedScenes.map(s => s.id);
         const { data: refData } = await supabase
           .from('storyboard_scene_references')
@@ -117,33 +120,62 @@ export function SendToStoryboardModal({
   const handleConfirm = async () => {
     if (!selectedSceneId || !user) return;
 
-    const refCount = sceneRefs[selectedSceneId] ?? 0;
-    if (refCount >= 3) {
-      toast.error('Esta cena já tem 3 referências (máximo)');
-      return;
-    }
-
-    // Check for duplicate
-    const { data: existing } = await supabase
-      .from('storyboard_scene_references')
-      .select('id')
-      .eq('scene_id', selectedSceneId)
-      .eq('image_id', pendingImage.imageId)
-      .maybeSingle();
-
-    if (existing) {
-      toast.error('Imagem já é referência desta cena');
-      return;
-    }
-
     setSubmitting(true);
+
+    let targetSceneId = selectedSceneId;
+
+    // Auto-create scene if the project had none
+    if (selectedSceneId === '__new__') {
+      const { data: newScene, error: sceneError } = await supabase
+        .from('storyboard_scenes')
+        .insert({
+          project_id: selectedProjectId,
+          user_id: user.id,
+          title: 'Cena 1',
+          sort_order: 0,
+          position_x: 100,
+          position_y: 150,
+          prompt_base: pendingImage.prompt || '',
+          aspect_ratio: '16:9',
+        })
+        .select('id')
+        .single();
+
+      if (sceneError || !newScene) {
+        toast.error('Erro ao criar cena');
+        setSubmitting(false);
+        return;
+      }
+      targetSceneId = newScene.id;
+    } else {
+      const refCount = sceneRefs[selectedSceneId] ?? 0;
+      if (refCount >= 3) {
+        toast.error('Esta cena já tem 3 referências (máximo)');
+        setSubmitting(false);
+        return;
+      }
+
+      const { data: existing } = await supabase
+        .from('storyboard_scene_references')
+        .select('id')
+        .eq('scene_id', selectedSceneId)
+        .eq('image_id', pendingImage.imageId)
+        .maybeSingle();
+
+      if (existing) {
+        toast.error('Imagem já é referência desta cena');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('storyboard_scene_references')
       .insert({
-        scene_id: selectedSceneId,
+        scene_id: targetSceneId,
         image_id: pendingImage.imageId,
         user_id: user.id,
-        sort_order: refCount,
+        sort_order: 0,
       });
 
     if (error) {
@@ -154,7 +186,7 @@ export function SendToStoryboardModal({
 
     toast.success('Imagem adicionada ao storyboard!');
     localStorage.removeItem('abrahub_pending_scene_image');
-    onSuccess(selectedProjectId, selectedSceneId);
+    onSuccess(selectedProjectId, targetSceneId);
   };
 
   return (
@@ -221,7 +253,7 @@ export function SendToStoryboardModal({
                 </div>
               ) : scenes.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  Este projeto não tem cenas ainda.
+                  Nenhuma cena encontrada — uma nova cena será criada automaticamente.
                 </p>
               ) : (
                 <Select value={selectedSceneId} onValueChange={setSelectedSceneId}>
