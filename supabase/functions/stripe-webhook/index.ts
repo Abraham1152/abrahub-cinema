@@ -349,27 +349,6 @@ async function createUserWithPassword(
   }
 
   logStep("User created successfully with secure password (needs setup)", { userId: createData.user.id, email });
-
-  // Send magic link so the user can set up their account
-  try {
-    const siteUrl = Deno.env.get("SITE_URL") || Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", ".vercel.app") || "";
-    const { error: magicLinkError } = await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: {
-        redirectTo: siteUrl ? `${siteUrl}/auth/callback` : undefined,
-      },
-    });
-
-    if (magicLinkError) {
-      logStep("WARNING: Failed to generate magic link, user will need to use 'forgot password'", { error: magicLinkError.message });
-    } else {
-      logStep("Magic link generated for new user", { email });
-    }
-  } catch (err) {
-    logStep("WARNING: Magic link generation failed", { error: err instanceof Error ? err.message : String(err) });
-  }
-
   return { userId: createData.user.id };
 }
 
