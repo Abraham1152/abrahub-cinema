@@ -111,6 +111,78 @@ export default function Index() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
+  // Auto-queue grid generation from Storyboard (pending stored in localStorage)
+  useEffect(() => {
+    if (!user?.id) return;
+    const raw = localStorage.getItem('abrahub_pending_grid_image');
+    if (!raw) return;
+    localStorage.removeItem('abrahub_pending_grid_image');
+    let parsed: { imageUrl: string; prompt: string } | null = null;
+    try { parsed = JSON.parse(raw); } catch { return; }
+    if (!parsed?.imageUrl) return;
+    const { imageUrl, prompt } = parsed;
+    (async () => {
+      try {
+        toast.info('Preparando Grid do Storyboard...');
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error('Falha ao ler imagem'));
+          reader.readAsDataURL(blob);
+        });
+        const tempId = `temp-grid-${Date.now()}`;
+        const createdAt = new Date().toISOString();
+        setGalleryMap(prev => {
+          const newMap = new Map(prev);
+          newMap.set(tempId, {
+            id: tempId,
+            type: 'image',
+            url: undefined,
+            prompt: prompt || 'Grid do Storyboard',
+            model: 'gemini-2.0-flash-exp',
+            modelLabel: 'Grid • Processando...',
+            status: 'pending',
+            createdAt,
+            creditsCost: 0,
+            is_story6: true,
+          });
+          return newMap;
+        });
+        optimisticQueueIdsRef.current.add(tempId);
+        const result = await queueGeneration({
+          prompt: prompt || 'Grid do Storyboard',
+          aspectRatio: '16:9',
+          quality: '2K',
+          presetId: selectedPreset,
+          focalLength: selectedFocalLength,
+          aperture: selectedAperture,
+          referenceImages: [base64],
+          useOwnKey: true,
+          storyboard6Mode: true,
+        });
+        if (result?.success && result?.queueId) {
+          setGalleryMap(prev => {
+            const newMap = new Map(prev);
+            const item = newMap.get(tempId);
+            if (item) {
+              newMap.delete(tempId);
+              optimisticQueueIdsRef.current.delete(tempId);
+              newMap.set(result.queueId, { ...item, id: result.queueId, status: 'generating' });
+              optimisticQueueIdsRef.current.add(result.queueId);
+            }
+            return newMap;
+          });
+          toast.success('Grid adicionado à fila!');
+        }
+      } catch (err) {
+        console.error('[PendingGrid]', err);
+        toast.error('Erro ao processar Grid do Storyboard');
+      }
+    })();
+  }, [user?.id]);
+
   // Check if user has a valid BYOK API key
   useEffect(() => {
     if (!user?.id) return;

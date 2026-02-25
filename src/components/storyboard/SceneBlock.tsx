@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, DragEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Trash2, GripHorizontal, Plus, X, Loader2, Star, Download, Image as ImageIcon, Sparkles, Upload, Copy, Link2Off, Link2, Film, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -95,12 +96,14 @@ export function SceneBlock({
   onCreateFromScene,
   onStartConnectionDrag, onDropConnection, isDraggingConnection, draggingFromId,
 }: SceneBlockProps) {
+  const navigate = useNavigate();
   const [localPrompt, setLocalPrompt] = useState(scene.prompt_base || '');
-  const [viewerImage, setViewerImage] = useState<{ full: string; download?: string } | null>(null);
+  const [viewerImage, setViewerImage] = useState<{ full: string; download?: string; id?: string; prompt?: string } | null>(null);
   const [refPickerOpen, setRefPickerOpen] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const promptTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const blockRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setLocalPrompt(scene.prompt_base || ''); }, [scene.id, scene.prompt_base]);
 
@@ -113,7 +116,7 @@ export function SceneBlock({
     }, 500);
   }, [scene.id, onUpdate]);
 
-  // Drag handling
+  // Drag handling — direct DOM manipulation for zero-lag movement, persist only on drop
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!isDraggable) return;
     if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
@@ -123,13 +126,37 @@ export function SceneBlock({
     const origY = (scene.position_x !== 0 || scene.position_y !== 0) ? scene.position_y : (computedPosition?.y ?? scene.position_y);
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX, origY };
 
+    // Target the absolute-positioned wrapper (parent of this component)
+    const wrapperEl = blockRef.current?.parentElement as HTMLElement | null;
+    if (wrapperEl) {
+      wrapperEl.style.willChange = 'transform';
+      wrapperEl.style.zIndex = '50';
+    }
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+
     const handleMouseMove = (ev: MouseEvent) => {
-      if (!dragRef.current) return;
+      if (!dragRef.current || !wrapperEl) return;
       const dx = (ev.clientX - dragRef.current.startX) / zoom;
       const dy = (ev.clientY - dragRef.current.startY) / zoom;
-      onUpdate(scene.id, { position_x: dragRef.current.origX + dx, position_y: dragRef.current.origY + dy });
+      // GPU-accelerated visual feedback — no React re-renders, no DB calls
+      wrapperEl.style.transform = `translate(${dx}px, ${dy}px)`;
     };
-    const handleMouseUp = () => {
+    const handleMouseUp = (ev: MouseEvent) => {
+      if (dragRef.current) {
+        const dx = (ev.clientX - dragRef.current.startX) / zoom;
+        const dy = (ev.clientY - dragRef.current.startY) / zoom;
+        // Reset visual transform before state update
+        if (wrapperEl) {
+          wrapperEl.style.transform = '';
+          wrapperEl.style.willChange = '';
+          wrapperEl.style.zIndex = '';
+        }
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        // Single state + DB persist on drop
+        onUpdate(scene.id, { position_x: dragRef.current.origX + dx, position_y: dragRef.current.origY + dy });
+      }
       dragRef.current = null;
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -148,6 +175,7 @@ export function SceneBlock({
 
   return (
     <div
+      ref={blockRef}
       className="relative bg-background/95 backdrop-blur-md border-2 border-border rounded-xl shadow-xl transition-shadow w-[360px]"
       onMouseDown={handleMouseDown}
     >
@@ -430,7 +458,7 @@ export function SceneBlock({
                   }`}
                   onClick={() => {
                     const fullUrl = img.master_url || img.image_url;
-                    if (fullUrl) setViewerImage({ full: fullUrl, download: img.master_url || undefined });
+                    if (fullUrl) setViewerImage({ full: fullUrl, download: img.master_url || undefined, id: img.id, prompt: (img as any).prompt });
                   }}
                 >
                   {img.image_url ? (
@@ -496,6 +524,20 @@ export function SceneBlock({
         imageUrl={viewerImage?.full || null}
         downloadUrl={viewerImage?.download || null}
         onClose={() => setViewerImage(null)}
+        onAddAsReference={viewerImage?.id && references.length < 3 ? () => {
+          onAddReference(scene.id, viewerImage.id!, viewerImage.full, viewerImage.prompt);
+          setViewerImage(null);
+        } : undefined}
+        onSendToStudioAsGrid={viewerImage?.full ? () => {
+          localStorage.setItem('abrahub_pending_grid_image', JSON.stringify({
+            imageUrl: viewerImage.full,
+            prompt: viewerImage.prompt || '',
+            sourceTimestamp: Date.now(),
+          }));
+          setViewerImage(null);
+          toast.success('Enviando para Studio em modo Grid...');
+          navigate('/');
+        } : undefined}
       />
     </div>
   );

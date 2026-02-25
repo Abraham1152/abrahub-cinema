@@ -1,16 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, ZoomIn, ZoomOut, RotateCcw, X } from 'lucide-react';
+import { Download, ZoomIn, ZoomOut, RotateCcw, X, Plus, LayoutGrid } from 'lucide-react';
 
 interface ImageViewerModalProps {
   imageUrl: string | null;
   downloadUrl?: string | null;
   open: boolean;
   onClose: () => void;
+  onAddAsReference?: () => void;
+  onSendToStudioAsGrid?: () => void;
 }
 
-export function ImageViewerModal({ imageUrl, downloadUrl, open, onClose }: ImageViewerModalProps) {
+export function ImageViewerModal({ imageUrl, downloadUrl, open, onClose, onAddAsReference, onSendToStudioAsGrid }: ImageViewerModalProps) {
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -88,6 +90,16 @@ export function ImageViewerModal({ imageUrl, downloadUrl, open, onClose }: Image
           <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/60 text-white hover:bg-black/80" onClick={() => { setScale(1); setTranslate({ x: 0, y: 0 }); }}>
             <RotateCcw className="h-4 w-4" />
           </Button>
+          {onAddAsReference && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/60 text-white hover:bg-green-600" onClick={onAddAsReference} title="Adicionar como referência">
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
+          {onSendToStudioAsGrid && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/60 text-white hover:bg-violet-600" onClick={onSendToStudioAsGrid} title="Enviar ao Studio em modo Grid">
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8 bg-black/60 text-white hover:bg-blue-600" onClick={handleDownload}>
             <Download className="h-4 w-4" />
           </Button>

@@ -6,7 +6,7 @@ import type { StoryboardScene, StoryboardSceneImage, SceneReference, SceneConnec
 
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 2;
-const ZOOM_STEP = 0.15;
+const ZOOM_STEP = 0.05;
 const SCENE_WIDTH = 360;
 const SCENE_HEADER_HEIGHT = 40; // approximate center of header for port Y
 
