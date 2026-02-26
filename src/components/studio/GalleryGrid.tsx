@@ -23,6 +23,8 @@ function getFriendlyErrorMessage(errorMessage?: string): string {
     return 'Chave Gemini não configurada. Acesse as configurações e adicione sua API Key.';
   if (errorMessage.includes('SERVICE_UNAVAILABLE'))
     return 'O servidor Gemini está temporariamente indisponível. Tente novamente em breve.';
+  if (errorMessage.includes('GEMINI_TIMEOUT') || errorMessage.includes('Tempo limite'))
+    return 'A geração demorou demais e foi cancelada. Tente novamente.';
   if (errorMessage.includes('API_KEY_INVALID'))
     return 'Chave Gemini inválida. Verifique nas configurações se ela está correta.';
   if (errorMessage.includes('segurança') || errorMessage.includes('safety') || errorMessage.includes('unsupported'))

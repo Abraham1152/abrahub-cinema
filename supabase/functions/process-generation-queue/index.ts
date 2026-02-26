@@ -171,11 +171,23 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string, qualit
     },
   };
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4 * 60 * 1000); // 4 min hard timeout
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+  } catch (fetchErr: any) {
+    clearTimeout(timeoutId);
+    if (fetchErr.name === 'AbortError') throw new Error("GEMINI_TIMEOUT");
+    throw fetchErr;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const errorBody = await response.text();
@@ -416,7 +428,17 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
 
-    // NO rate limiting logic - Community mode processes everything
+    // Cleanup: mark items stuck in 'processing' for more than 5 minutes as failed
+    const stuckCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { count: stuckCount } = await supabaseAdmin
+      .from('generation_queue')
+      .update({ status: 'failed', error_message: 'Tempo limite excedido. Tente novamente.' })
+      .eq('status', 'processing')
+      .lt('started_at', stuckCutoff)
+      .select('id', { count: 'exact', head: true });
+    if (stuckCount && stuckCount > 0) {
+      logStep(`Cleaned up ${stuckCount} stuck item(s)`);
+    }
 
     // Find oldest queued item (Original legacy logic generation_queue)
     const { data: nextItem, error: findError } = await supabaseAdmin
