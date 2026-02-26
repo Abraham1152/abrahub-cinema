@@ -85,25 +85,44 @@ function getQualityConfig(quality: string, aspectRatio: string) {
   return { width: res[0], height: res[1], creditMultiplier: multiplier };
 }
 
-function buildAestheticPrompt(userSceneDescription: string, preset: CinemaPreset, focalLength: string, aperture: string, isUltrawide: boolean, referencePromptInjection?: string | null, cameraAngle: string = 'eye-level', filmLookDescription?: string | null, isStoryboard6: boolean = false): string {
+function buildGridPrompt(userDescription: string): string {
+  const extra = userDescription && userDescription.trim()
+    ? `\nAdditional context: ${userDescription.trim()}`
+    : '';
+  return [
+    `Generate a 6-panel camera angle reference sheet as a single composite image.`,
+    `LAYOUT: 3 columns × 2 rows (exactly 6 equal panels). No gaps, borders, or margins between panels. All panels fill the entire canvas edge to edge.`,
+    `SOURCE: Use the attached reference image as the base scene. Recreate that exact scene from 6 different camera angles:\n` +
+    `Panel 1 (top-left): Front-facing — camera directly in front of the subject\n` +
+    `Panel 2 (top-center): 3/4 right — camera angled 45° to the right\n` +
+    `Panel 3 (top-right): Right profile — camera 90° to the right\n` +
+    `Panel 4 (bottom-left): Left profile — camera 90° to the left\n` +
+    `Panel 5 (bottom-center): Low angle — camera below eye level, tilted upward\n` +
+    `Panel 6 (bottom-right): High angle — camera above subject, tilted downward`,
+    `STRICT RULES:\n` +
+    `- Scene content IDENTICAL across all 6 panels: same characters, same environment, same clothing, same lighting, same time of day\n` +
+    `- Only the camera angle changes — nothing else\n` +
+    `- Consistent style, colors, and quality in all panels\n` +
+    `- Do NOT invent or remove elements not present in the reference image\n` +
+    `- Output exactly 6 panels — no more, no less${extra}`,
+  ].join('\n\n');
+}
+
+function buildAestheticPrompt(userSceneDescription: string, preset: CinemaPreset, focalLength: string, aperture: string, isUltrawide: boolean, referencePromptInjection?: string | null, cameraAngle: string = 'eye-level', filmLookDescription?: string | null): string {
   const parts: string[] = [`Cinematic film still captured from a live-action movie.`];
-  
-  if (isStoryboard6) {
-    parts.push(`CRITICAL: You MUST generate EXACTLY 6 PANELS in a 2-row by 3-column grid (2x3).`);
-    parts.push(`PROHIBITED: DO NOT generate 9 panels. DO NOT use a 3x3 layout. ONLY 6 PANELS ALLOWED.`);
-    parts.push(`The 6 panels must touch the edges of the frame. No white or black margins.`);
-  } else if (isUltrawide) {
+
+  if (isUltrawide) {
     parts.push(`Compose the scene to fully occupy a wide cinematic frame.`);
   }
 
   if (referencePromptInjection) {
     parts.push(`=== REFERENCE IMAGE INSTRUCTIONS ===\n${referencePromptInjection}\nIMPORTANT: You MUST generate an IMAGE based on the instructions above.`);
   }
-  
+
   parts.push(`Ultra-realistic human appearance. No posing, candid expression.\n${userSceneDescription}\n=== CAMERA RIG ===\nCamera: ${preset.cameraBody}\nLens: ${preset.lensType}`);
-  
+
   if (filmLookDescription) parts.push(`=== COLOR GRADING & FILM LOOK ===\n${filmLookDescription}`);
-  
+
   return parts.join('\n\n');
 }
 
@@ -119,9 +138,14 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string, qualit
   const qualityConfig = getQualityConfig(quality, aspectRatio);
   const isStoryboard6 = referenceType === 'storyboard6';
   
-  const aestheticPrompt = buildAestheticPrompt(prompt, preset, focalLength, aperture, aspectRatio === '21:9', referencePromptInjection, cameraAngle, filmLookDescription, isStoryboard6);
-  
-  const fullPrompt = `${SYSTEM_PROMPT}\n\n${aestheticPrompt}\n\nDO NOT include: ${NEGATIVE_PROMPT}\n\nTechnical requirements: Generate image at ${qualityConfig.width}x${qualityConfig.height} resolution.`;
+  let fullPrompt: string;
+  if (isStoryboard6) {
+    // Grid mode: completely separate prompt — no cinematic wrapping, no camera rig, no aesthetic injection
+    fullPrompt = buildGridPrompt(prompt);
+  } else {
+    const aestheticPrompt = buildAestheticPrompt(prompt, preset, focalLength, aperture, aspectRatio === '21:9', referencePromptInjection, cameraAngle, filmLookDescription);
+    fullPrompt = `${SYSTEM_PROMPT}\n\n${aestheticPrompt}\n\nDO NOT include: ${NEGATIVE_PROMPT}\n\nTechnical requirements: Generate image at ${qualityConfig.width}x${qualityConfig.height} resolution.`;
+  }
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_CONFIG.modelId}:generateContent`;
 
   const contentParts: any[] = [];
@@ -158,6 +182,7 @@ async function generateWithGeminiAPI(prompt: string, aspectRatio: string, qualit
     console.error(`[GEMINI ERROR] Status: ${response.status} Body: ${errorBody}`);
     if (response.status === 429) throw new Error("RATE_LIMIT");
     if (response.status === 403) throw new Error("API_KEY_INVALID");
+    if (response.status === 503 || response.status === 529) throw new Error("SERVICE_UNAVAILABLE");
     throw new Error(`Gemini API failed: ${response.status} - ${errorBody.substring(0, 100)}`);
   }
 
@@ -229,6 +254,7 @@ async function fetchImageAsBase64(url: string): Promise<string> {
 // ============================================
 async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiApiKey: string): Promise<void> {
   const startTime = Date.now();
+  let imageRecordId: string | null = null;
   try {
     const isSequenceMode = item.reference_type === 'sequence' || item.sequence_mode;
     const isStoryboard6 = item.reference_type === 'storyboard6';
@@ -295,17 +321,34 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
       .select('id').single();
     
     if (insertError) throw insertError;
-    
+    imageRecordId = imageRecord.id;
+
     // Generate image
     // Use stored reference_prompt_injection (built by frontend from inherit_character/inherit_environment)
     // For split_upscale, always null (has its own hardcoded prompt logic)
     const promptInjection = isSplitUpscale ? null : (item.reference_prompt_injection || null);
-    let imageResult: GeminiImageResult;
-    try {
-      imageResult = await generateWithGeminiAPI(finalPrompt, effectiveAspectRatio, item.quality, effectiveApiKey, item.preset_id, item.focal_length, item.aperture, referenceImages, item.reference_type, promptInjection, item.camera_angle || 'eye-level', item.film_look, isSplitUpscale);
-    } catch (firstError: any) {
-      logStep("Generation failed", { error: firstError.message });
-      throw firstError;
+    let imageResult!: GeminiImageResult;
+    let lastGenError: any = null;
+    const RETRYABLE = ["RATE_LIMIT", "SERVICE_UNAVAILABLE"];
+    for (let attempt = 0; attempt <= RATE_LIMITS.MAX_RETRIES; attempt++) {
+      try {
+        imageResult = await generateWithGeminiAPI(finalPrompt, effectiveAspectRatio, item.quality, effectiveApiKey, item.preset_id, item.focal_length, item.aperture, referenceImages, item.reference_type, promptInjection, item.camera_angle || 'eye-level', item.film_look, isSplitUpscale);
+        lastGenError = null;
+        break;
+      } catch (genErr: any) {
+        lastGenError = genErr;
+        if (RETRYABLE.includes(genErr.message) && attempt < RATE_LIMITS.MAX_RETRIES) {
+          const delay = RATE_LIMITS.RETRY_DELAY_MS * (attempt + 1);
+          logStep(`Retrying generation (attempt ${attempt + 1}/${RATE_LIMITS.MAX_RETRIES})`, { reason: genErr.message, delayMs: delay });
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          break;
+        }
+      }
+    }
+    if (lastGenError) {
+      logStep("Generation failed after retries", { error: lastGenError.message });
+      throw lastGenError;
     }
     
     // Upload original bytes to Storage
@@ -338,22 +381,24 @@ async function processQueueItemAfterClaim(item: any, supabaseAdmin: any, geminiA
 
     // CRITICAL: Update both queue AND image record to fail state
     // This prevents the "Generating..." card from being stuck forever
-    await Promise.all([
+    const updates: Promise<any>[] = [
       supabaseAdmin.from('generation_queue').update({
-        status: 'failed', 
-        error_message: rawError, 
+        status: 'failed',
+        error_message: rawError,
         retry_count: (item.retry_count || 0) + 1,
       }).eq('id', item.id),
-      
-      // Update the actual image card so UI shows the error
-      supabaseAdmin.from('user_generated_images').update({
-        status: 'error',
-        error_message: rawError
-      }).filter('id', 'in', 
-        supabaseAdmin.from('generation_queue').select('result_image_id').eq('id', item.id)
-      ).or(`prompt.eq."${item.prompt}",user_id.eq."${item.user_id}"`) 
-      // Fallback: try to find the 'generating' record for this user/prompt if result_image_id wasn't set yet
-    ]).catch(err => console.error("Error during fail-state cleanup:", err));
+    ];
+
+    if (imageRecordId) {
+      updates.push(
+        supabaseAdmin.from('user_generated_images').update({
+          status: 'error',
+          error_message: rawError,
+        }).eq('id', imageRecordId)
+      );
+    }
+
+    await Promise.all(updates).catch(err => console.error("Error during fail-state cleanup:", err));
   }
 }
 
