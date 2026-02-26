@@ -15,6 +15,21 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { GridSplitModal } from '@/components/storyboard/GridSplitModal';
 
+function getFriendlyErrorMessage(errorMessage?: string): string {
+  if (!errorMessage) return 'Prompt ou arquivo contém conteúdo não suportado.';
+  if (errorMessage.includes('RATE_LIMIT'))
+    return 'Limite de requisições da sua chave Gemini atingido. Aguarde 1-2 minutos e tente novamente.';
+  if (errorMessage.includes('BYOK_KEY_INVALID'))
+    return 'Chave Gemini não configurada. Acesse as configurações e adicione sua API Key.';
+  if (errorMessage.includes('SERVICE_UNAVAILABLE'))
+    return 'O servidor Gemini está temporariamente indisponível. Tente novamente em breve.';
+  if (errorMessage.includes('API_KEY_INVALID'))
+    return 'Chave Gemini inválida. Verifique nas configurações se ela está correta.';
+  if (errorMessage.includes('segurança') || errorMessage.includes('safety') || errorMessage.includes('unsupported'))
+    return errorMessage;
+  return errorMessage;
+}
+
 // Download image as file with loading state
 async function downloadImage(
   url: string, 
@@ -399,9 +414,9 @@ export function GalleryGrid({
                             <ShieldAlert className="h-3.5 w-3.5 text-yellow-400 shrink-0 mt-0.5" />
                           )}
                           <p className="text-xs text-white/80 line-clamp-2">
-                            {timedOut 
-                              ? 'Generation timed out after 2 minutes...' 
-                              : (item.errorMessage || 'Prompt or file includes unsupported cont...')}
+                            {timedOut
+                              ? 'Geração expirou após 2 minutos. Tente novamente.'
+                              : getFriendlyErrorMessage(item.errorMessage)}
                           </p>
                         </div>
                         <p className="text-[10px] text-muted-foreground/60 line-clamp-1">
